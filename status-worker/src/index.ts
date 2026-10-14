@@ -13,6 +13,78 @@ type StatusRecord = {
 };
 
 const defaultOrigins = new Set(['https://chlors.cn', 'https://www.chlors.cn']);
+const loginAttemptKey = 'login-attempt-window';
+const loginAttemptLimit = 5;
+const loginAttemptWindowMs = 10 * 60 * 1000;
+
+type LoginAttemptWindow = { count: number; resetAt: number };
+
+export class LoginAttemptLimiter {
+  constructor(private readonly state: DurableObjectState) {}
+
+  async fetch(request: Request): Promise<Response> {
+    if (request.method !== 'POST') return new Response(null, { status: 405 });
+    const path = new URL(request.url).pathname;
+    const clientIp = request.headers.get('x-client-ip')?.trim();
+    if (!clientIp || clientIp.length > 45) return new Response(null, { status: 400 });
+    if (path === '/reset') {
+      await this.state.storage.transaction(async storage => {
+        await storage.delete(loginAttemptKey);
+        await storage.deleteAlarm();
+      });
+      return new Response(null, { status: 204 });
+    }
+    if (path !== '/check') return new Response(null, { status: 404 });
+    return this.checkAttempt();
+  }
+
+  async alarm(): Promise<void> {
+    await this.state.storage.transaction(async storage => {
+      const current = await storage.get<LoginAttemptWindow>(loginAttemptKey);
+      if (!current) return;
+      this.validateWindow(current);
+      if (current.resetAt <= Date.now()) {
+        await storage.delete(loginAttemptKey);
+        return;
+      }
+      await storage.setAlarm(current.resetAt);
+    });
+  }
+
+  private async checkAttempt(): Promise<Response> {
+    const now = Date.now();
+    const result = await this.state.storage.transaction(async storage => {
+      const current = await storage.get<LoginAttemptWindow>(loginAttemptKey);
+      if (!current) {
+        const resetAt = now + loginAttemptWindowMs;
+        await storage.put(loginAttemptKey, { count: 1, resetAt });
+        await storage.setAlarm(resetAt);
+        return { allowed: true as const };
+      }
+      this.validateWindow(current);
+      if (current.resetAt <= now) {
+        const resetAt = now + loginAttemptWindowMs;
+        await storage.put(loginAttemptKey, { count: 1, resetAt });
+        await storage.setAlarm(resetAt);
+        return { allowed: true as const };
+      }
+      if (current.count >= loginAttemptLimit) {
+        return { allowed: false as const, retryAfter: Math.max(1, Math.ceil((current.resetAt - now) / 1000)) };
+      }
+      await storage.put(loginAttemptKey, { count: current.count + 1, resetAt: current.resetAt });
+      return { allowed: true as const };
+    });
+
+    if (result.allowed) return new Response(null, { status: 204 });
+    return new Response(null, { status: 429, headers: { 'retry-after': String(result.retryAfter) } });
+  }
+
+  private validateWindow(current: LoginAttemptWindow): void {
+    if (!Number.isSafeInteger(current.count) || current.count < 1 || current.count > loginAttemptLimit || !Number.isFinite(current.resetAt)) {
+      throw new Error('Stored login attempt state is invalid.');
+    }
+  }
+}
 
 export class Presence {
   constructor(private readonly state: DurableObjectState) {}

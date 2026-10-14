@@ -31,6 +31,8 @@ npx wrangler deploy
 Pop-Location
 ```
 
+登录接口使用 `LoginAttemptLimiter` Durable Object 持久化限制管理员密码尝试次数。部署 `status-worker` 后，在 Cloudflare Pages 项目的 **Settings → Functions → Durable Object bindings** 中为 Production 和 Preview 都添加绑定：变量名 `LOGIN_ATTEMPT_LIMITER`，Worker 选择 `chlors-presence`，类选择 `LoginAttemptLimiter`。然后重新部署 Pages。每个 Cloudflare 客户端 IP 对每个管理员账号每 10 分钟最多校验 5 次；成功登录会清零该来源的计数。Pages 必须保留 Cloudflare 注入的 `CF-Connecting-IP` 请求头；未配置绑定、缺少客户端 IP 或限速服务不可用时，登录会明确失败并返回服务不可用。
+
 部署后访问 `/console/`，登录后选择 Markdown 正文、填写元数据并点击“发布到网站”。Function 会将文件写入 `src/content/posts/`，GitHub push 会自动触发 Cloudflare Pages 构建。
 
 ## 本地状态上报
