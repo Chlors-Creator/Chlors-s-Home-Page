@@ -6,7 +6,6 @@ const RETURN_LABEL = '←  RETURN TO ARCHIVE';
 const RETURN_BUTTON_HEIGHT = 26;
 const INSPECTION_TEXT_GAP = 16;
 const INSPECTION_FIT_MARGIN = 190;
-const INSPECTION_SCALE = 1.3;
 
 interface QuadOptions { ctx: CanvasRenderingContext2D; image: HTMLImageElement; quad: number[][]; x: number; y: number; scale: number; alpha?: number }
 interface SpineOptions { ctx: CanvasRenderingContext2D; quad: number[][]; x: number; y: number; scale: number; index: number }
@@ -93,12 +92,13 @@ export function drawCase(options: CaseOptions): CaseHit {
   const { cases: meta } = assets;
   const x = screen.x - meta.array.origin[0] * scale; const y = screen.y - meta.array.origin[1] * scale;
   const size = meta.array_res[0] * scale; const cover = assets.covers.get(track.cover);
-  if (!cover) throw new Error(`Archive cover image is missing: ${track.cover}`);
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.filter = tint ? `saturate(${1 - tint}) brightness(${1 - tint * 0.48})` : 'none';
-  drawImageQuad({ ctx, image: cover, quad: meta.array.cover, x, y, scale, alpha: 1 - motion.clear.x });
-  if (selected && motion.clear.x > 0.01) drawImageQuad({ ctx, image: cover, quad: meta.array.cover, x, y, scale, alpha: motion.clear.x });
+  if (cover) {
+    drawImageQuad({ ctx, image: cover, quad: meta.array.cover, x, y, scale, alpha: 1 - motion.clear.x });
+    if (selected && motion.clear.x > 0.01) drawImageQuad({ ctx, image: cover, quad: meta.array.cover, x, y, scale, alpha: motion.clear.x });
+  }
   ctx.globalAlpha = alpha * (1 - clamp(motion.clear.x, 0, 1));
   ctx.drawImage(assets.frost, x, y, size, size);
   ctx.globalAlpha = alpha * clamp(motion.clear.x, 0, 1);
@@ -132,12 +132,11 @@ export function drawInspection(options: InspectionOptions): InspectionReturnRect
   const x = center.x - frameData.current.center[0] * frameData.scale;
   const y = center.y - frameData.current.center[1] * frameData.scale;
   const cover = assets.covers.get(track.cover);
-  if (!cover) throw new Error(`Archive cover image is missing: ${track.cover}`);
   drawInspectionArtwork({ ctx, assets, track, cover, frameData, x, y });
   return drawInspectionLabels({ ctx, track, frameData, x, y, e });
 }
 
-interface InspectionFrameData { current: CaseMeta['inspect'][number]; next: CaseMeta['inspect'][number]; index: number; blend: number; scale: number }
+interface InspectionFrameData { current: CaseMeta['inspect'][number]; next: CaseMeta['inspect'][number]; index: number; blend: number; scale: number; cover: number[][]; label: number[][] }
 interface InspectionFrameOptions { meta: CaseMeta; images: HTMLImageElement[]; progress: number; arrayScale: number; width: number; height: number }
 
 function inspectionFrame({ meta, images, progress, arrayScale, width, height }: InspectionFrameOptions): InspectionFrameData {
@@ -146,32 +145,46 @@ function inspectionFrame({ meta, images, progress, arrayScale, width, height }: 
   const lastCrop = lastFrame.crop;
   const fit = Math.min(width * 0.9 / lastCrop[2]!, (height - INSPECTION_FIT_MARGIN) / lastCrop[3]!);
   const initialScale = arrayScale * meta.array_ppu / meta.inspect_ppu;
-  const endScale = Math.max(initialScale, Math.min(initialScale * INSPECT_ZOOM * INSPECTION_SCALE, fit));
+  const endScale = Math.max(initialScale, Math.min(initialScale * INSPECT_ZOOM, fit));
   const at = progress * (images.length - 1);
   const index = Math.min(images.length - 2, Math.floor(at));
   const current = meta.inspect[index]; const next = meta.inspect[index + 1];
   if (!current || !next) throw new Error(`Archive inspection metadata is missing frame ${index}.`);
   const blend = clamp(at - index, 0, 1);
   const scale = initialScale + (endScale - initialScale) * progress;
-  return { current, next, index, blend, scale };
+  return { current, next, index, blend, scale, cover: interpolateQuad(current.cover, next.cover, blend), label: interpolateQuad(current.label, next.label, blend) };
+}
+
+function interpolateQuad(from: number[][], to: number[][], progress: number): number[][] {
+  return from.map((point, index) => [
+    point[0]! + (to[index]![0]! - point[0]!) * progress,
+    point[1]! + (to[index]![1]! - point[1]!) * progress,
+  ]);
 }
 
 interface InspectionArtworkOptions {
-  ctx: CanvasRenderingContext2D; assets: ArchiveAssets; track: ArchiveTrack; cover: HTMLImageElement;
+  ctx: CanvasRenderingContext2D; assets: ArchiveAssets; track: ArchiveTrack; cover: HTMLImageElement | undefined;
   frameData: InspectionFrameData; x: number; y: number;
 }
 
 function drawInspectionArtwork(options: InspectionArtworkOptions): void {
   const { ctx, assets, track, cover, frameData, x, y } = options;
   const { current, next, index, blend, scale } = frameData;
-  const quad = current.cover.map((point, i) => [
-    point[0]! + (next.cover[i]![0]! - point[0]!) * blend,
-    point[1]! + (next.cover[i]![1]! - point[1]!) * blend,
-  ]);
-  drawImageQuad({ ctx, image: cover, quad, x, y, scale });
+  if (cover) drawImageQuad({ ctx, image: cover, quad: frameData.cover, x, y, scale });
+  else fillCoverWell({ ctx, quad: frameData.cover, x, y, scale });
   drawFrame({ ctx, image: assets.inspection[index]!, crop: current.crop, x, y, scale, alpha: 1 });
   drawFrame({ ctx, image: assets.inspection[index + 1]!, crop: next.crop, x, y, scale, alpha: blend });
-  drawSpine({ ctx, quad: current.label, x, y, scale, index: track.globalIndex });
+  drawSpine({ ctx, quad: frameData.label, x, y, scale, index: track.globalIndex });
+}
+
+function fillCoverWell(options: { ctx: CanvasRenderingContext2D; quad: number[][]; x: number; y: number; scale: number }): void {
+  const { ctx, quad, x, y, scale } = options;
+  const [first, ...rest] = quad;
+  if (!first) throw new Error('Inspection cover geometry is empty.');
+  ctx.save(); ctx.fillStyle = '#898983'; ctx.beginPath();
+  ctx.moveTo(x + first[0]! * scale, y + first[1]! * scale);
+  rest.forEach(([px, py]) => ctx.lineTo(x + px! * scale, y + py! * scale));
+  ctx.closePath(); ctx.fill(); ctx.restore();
 }
 
 interface InspectionLabelOptions {
@@ -182,7 +195,7 @@ function drawInspectionLabels(options: InspectionLabelOptions): InspectionReturn
   const { ctx, track, frameData, x, y, e } = options;
   if (e <= 0.85) return null;
   const alpha = (e - 0.85) / 0.15;
-  const quad = frameData.current.cover;
+  const quad = frameData.cover;
   drawInspectCorners({ ctx, quad, x, y, scale: frameData.scale, alpha });
   if (alpha <= 0.5) return null;
   const crop = frameData.next.crop;

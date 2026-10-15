@@ -1,8 +1,8 @@
 import {
-  SHELF_SLOTS, buildShelves, caseTarget, clamp, createSpring, getArchiveGeometry,
+  buildShelves, caseTarget, clamp, createSpring, getArchiveGeometry, indexShelfTracks,
   isInsidePolygon, stepSpring, type ArchiveTrack, type CaseMotion, type Spring,
 } from './archive-model';
-import { drawArchiveScene, loadArchiveAssets, loadInspectionFrames, type ArchiveAssets, type RenderResult, type RenderState } from './archive-renderer';
+import { drawArchiveScene, loadArchiveAssets, loadArchiveCovers, loadInspectionFrames, type ArchiveAssets, type RenderResult, type RenderState } from './archive-renderer';
 
 const FRAME_LIMIT_SECONDS = 0.05;
 const ROW_FREQUENCY = 9;
@@ -35,6 +35,10 @@ const returnButton = page.querySelector<HTMLButtonElement>('#inspection-return')
 if (!gallery || !canvas) throw new Error('Audio archive stage markup is incomplete.');
 const tracks = JSON.parse(gallery.dataset.archiveManifest || '[]') as ArchiveTrack[];
 const shelves = buildShelves(tracks);
+const trackLocations = indexShelfTracks(shelves);
+const initialSelection = Number(gallery.dataset.initialSelection);
+const initialLocation = trackLocations.get(initialSelection);
+if (!Number.isInteger(initialSelection) || !initialLocation) throw new Error('Music archive initial selection is invalid.');
 const ctx = canvas.getContext('2d');
 if (!ctx) throw new Error('Audio archive canvas context is unavailable.');
 
@@ -45,12 +49,17 @@ let isRunning = false;
 let inspectionLoading: Promise<void> | null = null;
 const initialMotion = new Map<number, CaseMotion>();
 const state: StageState = {
-  selected: 0, hovered: -1, inspectionProgress: 0, inspectionTarget: 0,
-  rowPositions: new Map(), shelfOffset: new Map(), shelfSelection: new Map(), motion: initialMotion,
+  selected: initialSelection, hovered: -1, inspectionProgress: 0, inspectionTarget: 0,
+  rowPositions: new Map(), shelfOffset: new Map(), shelfSelection: new Map([[initialLocation.shelf, initialLocation.slot]]), motion: initialMotion,
 };
 
-function selectedShelf(): number { return Math.floor(state.selected / SHELF_SLOTS); }
-function selectedSlot(): number { return state.selected % SHELF_SLOTS; }
+function selectedLocation() {
+  const location = trackLocations.get(state.selected);
+  if (!location) throw new Error(`Archive selection has no shelf: ${state.selected}`);
+  return location;
+}
+function selectedShelf(): number { return selectedLocation().shelf; }
+function selectedSlot(): number { return selectedLocation().slot; }
 
 function setSelection(index: number, publish = false): void {
   if (!Number.isInteger(index) || index < 0 || index >= tracks.length) throw new Error(`Archive selection is outside the library: ${index}`);
@@ -93,7 +102,8 @@ function updateRowTargets(): void {
     scroll.target = scrollTarget;
     const selectedInShelf = shelf.index === active ? selectedSlot() : selection;
     shelf.tracks.forEach((track, slot) => {
-      const hoveredSlot = Math.floor(state.hovered / SHELF_SLOTS) === shelf.index ? state.hovered % SHELF_SLOTS : -1;
+      const hoverLocation = trackLocations.get(state.hovered);
+      const hoveredSlot = hoverLocation?.shelf === shelf.index ? hoverLocation.slot : -1;
       const target = caseTarget({ slot, selectedSlot: selectedInShelf, active: shelf.index === active, hoverSlot: hoveredSlot });
       let motion = state.motion.get(track.globalIndex);
       if (!motion) {
@@ -245,11 +255,37 @@ function bindKeyboard(): void {
     }
     const step = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 0;
     if (step && state.inspectionProgress === 0) {
-      const amount = event.key === 'ArrowLeft' || event.key === 'ArrowRight' ? SHELF_SLOTS : 1;
-      const next = clamp(state.selected + step * amount, 0, tracks.length - 1);
-      setSelection(next, true); event.preventDefault();
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        const shelf = shelves[selectedShelf()]!;
+        const nextSlot = clamp(selectedSlot() + step, 0, shelf.tracks.length - 1);
+        setSelection(shelf.tracks[nextSlot]!.globalIndex, true);
+      } else {
+        const shelfStep = event.key === 'ArrowLeft' ? 1 : -1;
+        const nextShelfIndex = clamp(selectedShelf() + shelfStep, 0, shelves.length - 1);
+        const nextShelf = shelves[nextShelfIndex]!;
+        const nextSlot = Math.min(selectedSlot(), nextShelf.tracks.length - 1);
+        setSelection(nextShelf.tracks[nextSlot]!.globalIndex, true);
+      }
+      event.preventDefault();
     }
   });
+}
+
+function moveSelectedTrack(delta: number): void {
+  const shelf = shelves[selectedShelf()];
+  if (!shelf) throw new Error(`Archive shelf is missing: ${selectedShelf()}`);
+  const nextSlot = clamp(selectedSlot() + delta, 0, shelf.tracks.length - 1);
+  const track = shelf.tracks[nextSlot];
+  if (!track) throw new Error(`Archive track is missing from slot ${nextSlot + 1}.`);
+  setSelection(track.globalIndex, true);
+}
+
+function bindWheel(): void {
+  canvas.addEventListener('wheel', (event) => {
+    if (state.inspectionProgress > 0) return;
+    moveSelectedTrack(event.deltaY > 0 ? 1 : -1);
+    event.preventDefault();
+  }, { passive: false });
 }
 
 function bindExternalSelection(): void {
@@ -260,12 +296,16 @@ function bindExternalSelection(): void {
 }
 
 async function start(): Promise<void> {
-  assets = await loadArchiveAssets(tracks);
+  assets = await loadArchiveAssets();
   updateRowTargets();
-  bindPointer(); bindKeyboard(); bindExternalSelection();
+  bindPointer(); bindKeyboard(); bindWheel(); bindExternalSelection();
   const observer = new ResizeObserver(() => { updateRowTargets(); scheduleFrame(); });
   observer.observe(canvas);
   scheduleFrame();
+  void loadArchiveCovers(tracks, assets, scheduleFrame).catch((error: unknown) => {
+    reportRenderError(error);
+    throw error;
+  });
 }
 
 void start().catch((error: unknown) => {

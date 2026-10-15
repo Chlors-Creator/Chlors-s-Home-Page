@@ -28,6 +28,7 @@ export function createPlayerView(
   const pauseIcon = playPause?.querySelector<SVGElement>('[data-pause-icon]');
   const modeButton = query<HTMLButtonElement>('[data-mode-button]');
   const volume = query<HTMLInputElement>('[data-volume]');
+  const volumeValue = query<HTMLOutputElement>('[data-volume-value]');
   const progress = query<HTMLElement>('[data-progress]');
   const fill = query<HTMLElement>('[data-progress-fill]');
   const thumb = query<HTMLElement>('[data-progress-thumb]');
@@ -71,7 +72,12 @@ export function createPlayerView(
       progress.setAttribute('aria-valuemax', String(total));
       progress.setAttribute('aria-valuenow', String(played));
     }
-    if (volume) volume.value = String(Number(localStorage.getItem('music-volume') ?? 0.8));
+    const volumeLevel = Number(localStorage.getItem('music-volume') ?? root.dataset.defaultVolume ?? 0.8);
+    if (volume) volume.value = String(volumeLevel);
+    if (volumeValue) {
+      volumeValue.value = String(Math.round(volumeLevel * 100));
+      volumeValue.textContent = volumeValue.value;
+    }
     if (modeButton) {
       modeButton.querySelectorAll<SVGElement>('[data-mode-icon]').forEach((icon) => {
         icon.toggleAttribute('hidden', icon.dataset.modeIcon !== controller.mode);

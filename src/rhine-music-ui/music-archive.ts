@@ -1,7 +1,8 @@
 import '../scripts/music/index.ts';
 import { getSharedController } from '../scripts/music/controller';
 import type { Queue, Track } from '../scripts/music/types';
-import { SHELF_SLOTS, createSpring, stepSpring, type Spring } from './archive-model';
+import { SHELF_SLOTS, buildShelves, createSpring, indexShelfTracks, stepSpring, type Spring } from './archive-model';
+import { rollCounter, scrambleTitle } from './archive-motion';
 import './archive-stage';
 
 interface ArchiveTrack extends Track {
@@ -37,6 +38,10 @@ const gallery = required<HTMLElement>(page, '#archive-gallery');
 const playerSlot = required<HTMLElement>(page, '#music-player-slot');
 const controller = getSharedController();
 const tracks = JSON.parse(gallery.dataset.archiveManifest || '[]') as ArchiveTrack[];
+const shelves = buildShelves(tracks);
+const trackLocations = indexShelfTracks(shelves);
+const initialSelection = Number(gallery.dataset.initialSelection);
+if (!Number.isInteger(initialSelection) || !tracks[initialSelection]) throw new Error('Music archive initial selection is invalid.');
 const folderTracks = new Map<string, ArchiveTrack[]>();
 tracks.forEach((track) => folderTracks.set(track.folderPath, [...(folderTracks.get(track.folderPath) ?? []), track]));
 const queueForFolder = (folderPath: string): Queue => {
@@ -45,7 +50,7 @@ const queueForFolder = (folderPath: string): Queue => {
   return { slug: folderPath, title: list[0]!.folderTitle, tracks: list.map(toPlayerTrack) };
 };
 const allTracksQueue: Queue = { slug: 'audio-archive-all', title: 'Audio Archive', tracks: tracks.map(toPlayerTrack) };
-let selection = tracks[0]?.globalIndex ?? 0;
+let selection = initialSelection;
 let activeFolderPath = '';
 const shelfSelections = new Map<number, number>();
 const rulerMotions = new Map<number, RulerMotion>();
@@ -54,19 +59,26 @@ let hoveredRulerIndex = -1;
 let rulerAnimationFrame = 0;
 let lastRulerFrame = 0;
 
+function trackLocation(index: number) {
+  const location = trackLocations.get(index);
+  if (!location) throw new Error(`Music archive track has no shelf: ${index}`);
+  return location;
+}
+
 function toPlayerTrack(track: ArchiveTrack): Track {
   return { title: track.title, artist: track.artist, src: track.src, cover: track.cover, duration: track.duration, lyricsSrc: track.lyricsSrc };
 }
 
 function updateRuler(index: number): void {
   const ruler = required<HTMLElement>(page, '[data-ruler]');
-  const shelf = Math.floor(index / SHELF_SLOTS);
-  const first = shelf * SHELF_SLOTS;
+  const shelf = trackLocation(index).shelf;
+  const row = shelves[shelf];
+  if (!row) throw new Error(`Music archive shelf is missing: ${shelf}`);
   if (shelf !== currentRulerShelf) {
     currentRulerShelf = shelf;
     hoveredRulerIndex = -1;
     rulerMotions.clear();
-    ruler.replaceChildren(...tracks.slice(first, first + SHELF_SLOTS).map((track) => createRulerTick(track, index)));
+    ruler.replaceChildren(...row.tracks.map((track) => createRulerTick(track, index)));
   }
   rulerMotions.forEach(({ tick, spring }, trackIndex) => {
     const selected = trackIndex === index;
@@ -77,14 +89,14 @@ function updateRuler(index: number): void {
 }
 
 function updateFolderLabel(track: ArchiveTrack): void {
-  const shelf = Math.floor(track.globalIndex / SHELF_SLOTS);
-  const first = shelf * SHELF_SLOTS;
-  const shelfTracks = tracks.slice(first, first + SHELF_SLOTS);
-  const folderNames = [...new Set(shelfTracks.map((item) => item.folderTitle))];
-  required<HTMLElement>(page, '[data-folder-name]').textContent = folderNames.join(' · ');
-  required<HTMLElement>(page, '[data-shelf-number]').textContent = String(shelf + INDEX_OFFSET).padStart(TWO_DIGIT_WIDTH, '0');
-  required<HTMLElement>(page, '[data-shelf-track-count]').textContent = String(shelfTracks.length).padStart(TWO_DIGIT_WIDTH, '0');
-  shelfSelections.set(shelf, track.globalIndex);
+  const location = trackLocation(track.globalIndex);
+  const shelf = shelves[location.shelf];
+  if (!shelf) throw new Error(`Music archive shelf is missing: ${location.shelf}`);
+  required<HTMLElement>(page, '[data-folder-name]').textContent = shelf.folderTitle;
+  required<HTMLElement>(page, '#archive-playlists').dataset.folderWatermark = shelf.folderTitle.toUpperCase();
+  rollCounter(required<HTMLElement>(page, '[data-shelf-number]'), String(shelf.index + INDEX_OFFSET).padStart(TWO_DIGIT_WIDTH, '0'));
+  required<HTMLElement>(page, '[data-shelf-track-count]').textContent = String(SHELF_SLOTS).padStart(TWO_DIGIT_WIDTH, '0');
+  shelfSelections.set(shelf.index, track.globalIndex);
 }
 
 function updateDetail(track: ArchiveTrack): void {
@@ -92,18 +104,19 @@ function updateDetail(track: ArchiveTrack): void {
   panels.forEach((panel) => { panel.hidden = Number(panel.dataset.detailFolder) !== track.folderIndex; });
   const panel = panels.find((item) => Number(item.dataset.detailFolder) === track.folderIndex);
   if (!panel) throw new Error(`Audio archive details missing for folder ${track.folderIndex + 1}`);
-  required<HTMLElement>(panel, '[data-current-title]').textContent = track.title;
+  scrambleTitle(required<HTMLElement>(panel, '[data-current-title]'), track.title);
   required<HTMLElement>(panel, '[data-current-artist]').textContent = track.artist;
   required<HTMLElement>(panel, '[data-current-meta]').textContent = `${track.folderTitle.toUpperCase()} / ${track.durationLabel}`;
   required<HTMLElement>(panel, '[data-track-number]').textContent = String(track.globalIndex + INDEX_OFFSET).padStart(FOUR_DIGIT_WIDTH, '0');
   required<HTMLElement>(panel, '[data-profile-code]').textContent = `ARC-${String(track.globalIndex + INDEX_OFFSET).padStart(FOUR_DIGIT_WIDTH, '0')}`;
-  panel.querySelectorAll<HTMLElement>('[data-detail-track]').forEach((item) => {
-    required<HTMLButtonElement>(item, 'button').setAttribute('aria-pressed', String(readIndex(item) === track.globalIndex));
-  });
-  required<HTMLImageElement>(page, '#transport-cover').src = track.cover;
+  const detailTrack = required<HTMLElement>(panel, '[data-detail-track]');
+  detailTrack.dataset.globalIndex = String(track.globalIndex);
+  required<HTMLButtonElement>(detailTrack, 'button').setAttribute('aria-pressed', 'true');
+  required<HTMLElement>(detailTrack, '[data-detail-title]').textContent = track.title;
+  required<HTMLElement>(detailTrack, '[data-detail-duration]').textContent = track.durationLabel;
   updateFolderLabel(track);
-  const localIndex = track.globalIndex % SHELF_SLOTS;
-  required<HTMLElement>(page, '[data-selected-number]').textContent = String(localIndex + INDEX_OFFSET).padStart(TWO_DIGIT_WIDTH, '0');
+  const localIndex = trackLocation(track.globalIndex).slot;
+  rollCounter(required<HTMLElement>(page, '[data-selected-number]'), String(localIndex + INDEX_OFFSET).padStart(TWO_DIGIT_WIDTH, '0'));
   updateRuler(track.globalIndex);
 }
 
@@ -139,7 +152,7 @@ function createRulerTick(track: ArchiveTrack, selectedIndex: number): HTMLButton
   const tick = document.createElement('button');
   tick.type = 'button'; tick.className = 'ruler-tick';
   tick.dataset.globalIndex = String(track.globalIndex);
-  tick.dataset.shelfSlot = String(track.globalIndex % SHELF_SLOTS);
+  tick.dataset.shelfSlot = String(trackLocation(track.globalIndex).slot);
   tick.setAttribute('aria-label', `${track.title} / ${track.artist}`);
   tick.setAttribute('aria-current', String(track.globalIndex === selectedIndex));
   const selected = track.globalIndex === selectedIndex;
@@ -154,7 +167,7 @@ function createRulerTick(track: ArchiveTrack, selectedIndex: number): HTMLButton
 }
 
 function updateRulerHoverTargets(): void {
-  const hoverSlot = hoveredRulerIndex < 0 ? -1 : hoveredRulerIndex % SHELF_SLOTS;
+  const hoverSlot = hoveredRulerIndex < 0 ? -1 : trackLocation(hoveredRulerIndex).slot;
   rulerMotions.forEach(({ tick, spring }, trackIndex) => {
     const distance = Number(tick.dataset.shelfSlot) - hoverSlot;
     const hoverHeight = hoverSlot < 0 ? RULER_IDLE_HEIGHT
@@ -199,28 +212,46 @@ function bindNavigation(): void {
   page.querySelectorAll<HTMLButtonElement>('[data-track-step]').forEach((button) => {
     button.addEventListener('click', () => {
       const delta = Number(button.dataset.trackStep);
-      const shelf = Math.floor(selection / SHELF_SLOTS);
-      const start = shelf * SHELF_SLOTS;
-      const end = Math.min(tracks.length - 1, start + SHELF_SLOTS - INDEX_OFFSET);
-      selectTrack(Math.min(end, Math.max(start, selection + delta)), true);
+      const location = trackLocation(selection);
+      const shelf = shelves[location.shelf];
+      if (!shelf) throw new Error(`Music archive shelf is missing: ${location.shelf}`);
+      const slot = Math.min(shelf.tracks.length - INDEX_OFFSET, Math.max(0, location.slot + delta));
+      selectTrack(shelf.tracks[slot]!.globalIndex, true);
     });
   });
   page.querySelectorAll<HTMLButtonElement>('[data-shelf-step]').forEach((button) => {
     button.addEventListener('click', () => {
-      const shelf = Math.floor(selection / SHELF_SLOTS) + Number(button.dataset.shelfStep);
-      const firstTrack = shelfSelections.get(shelf) ?? shelf * SHELF_SLOTS;
-      selectTrack(Math.min(tracks.length - 1, Math.max(0, firstTrack)), true);
+      const shelfIndex = trackLocation(selection).shelf + Number(button.dataset.shelfStep);
+      const shelf = shelves[shelfIndex];
+      if (!shelf) return;
+      const firstTrack = shelfSelections.get(shelfIndex) ?? shelf.tracks[0]!.globalIndex;
+      selectTrack(firstTrack, true);
     });
   });
-  page.querySelector<HTMLButtonElement>('[data-play-track]')?.addEventListener('click', () => playTrack(selection));
-  page.querySelector<HTMLButtonElement>('[data-play-folder]')?.addEventListener('click', () => {
-    const track = tracks[selection];
-    if (!track) throw new Error('The selected archive track is missing.');
-    const firstTrack = folderTracks.get(track.folderPath)?.[0];
-    if (!firstTrack) throw new Error(`No tracks registered for public/music/${track.folderPath}`);
-    playTrack(firstTrack.globalIndex);
+  page.querySelectorAll<HTMLButtonElement>('[data-play-track]').forEach((button) => {
+    button.addEventListener('click', () => playTrack(selection));
+  });
+  page.querySelectorAll<HTMLButtonElement>('[data-open-folder]').forEach((button) => {
+    button.addEventListener('click', openSelectedFolder);
   });
   document.addEventListener('rhine-archive:play', (event) => playTrack((event as CustomEvent<SelectionDetail>).detail.globalIndex));
+  controller.subscribe(updateTransportCover);
+}
+
+function openSelectedFolder(): void {
+  const track = tracks[selection];
+  if (!track) throw new Error('The selected archive track is missing.');
+  setLayout('grid');
+  const folder = required<HTMLElement>(page, `[data-grid-folder="${track.folderIndex}"]`);
+  folder.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  required<HTMLButtonElement>(folder, `[data-grid-track][data-global-index="${track.globalIndex}"]`).focus({ preventScroll: true });
+}
+
+function updateTransportCover(): void {
+  const image = required<HTMLImageElement>(page, '#transport-cover');
+  const playing = controller.queue?.tracks[controller.current];
+  image.hidden = !playing;
+  if (playing) image.src = playing.cover;
 }
 
 function setLayout(layout: string): void {

@@ -9,6 +9,7 @@ interface MusicTrack { title: string; artist: string; src: string; cover: string
 interface ArchiveFolder { path: string; title: string; tracks: MusicTrack[] }
 interface ArchiveTrack extends MusicTrack { globalIndex: number; folderIndex: number; folderPath: string; folderTitle: string; trackIndex: number; folderTrackCount: number }
 
+const SHELF_SLOTS = 20;
 const playlists = library.playlists as Record<string, MusicTrack[]>;
 const definitionsByPath = new Map<string, PlaylistDefinition>();
 for (const definition of definitions as PlaylistDefinition[]) {
@@ -29,13 +30,20 @@ const folders: ArchiveFolder[] = Object.entries(playlists)
 const archiveTracks: ArchiveTrack[] = folders.flatMap((folder, folderIndex) =>
   folder.tracks.map((track, trackIndex) => ({ ...track, globalIndex: 0, folderIndex, folderPath: folder.path, folderTitle: folder.title, trackIndex, folderTrackCount: folder.tracks.length })),
 ).map((track, index) => ({ ...track, globalIndex: index }));
+const folderRecords = folders.map((folder, folderIndex) => {
+  const firstTrack = archiveTracks.find((track) => track.folderIndex === folderIndex);
+  if (!firstTrack) throw new Error(`Music folder ${folder.path} has no playable tracks.`);
+  return { folder, folderIndex, firstTrack };
+});
 
 const trackCount = archiveTracks.length;
-const shelfCount = Math.ceil(trackCount / 20);
-const initialShelfTrackCount = Math.min(20, trackCount);
-const firstFolder = folders[0];
-const firstTrack = archiveTracks[0];
-if (!firstFolder || !firstTrack) throw new Error('Music archive has no playable tracks.');
+const initialFolder = folders.reduce((largest, folder) => folder.tracks.length > largest.tracks.length ? folder : largest);
+const initialTrackIndex = Math.min(7, initialFolder.tracks.length - 1);
+const firstTrack = archiveTracks.find((track) => track.folderPath === initialFolder.path && track.trackIndex === initialTrackIndex);
+if (!firstTrack) throw new Error('Music archive has no playable tracks.');
+const shelfCount = folders.reduce((count, folder) => count + Math.ceil(folder.tracks.length / SHELF_SLOTS), 0);
+const initialShelfIndex = folders.slice(0, firstTrack.folderIndex).reduce((count, folder) => count + Math.ceil(folder.tracks.length / SHELF_SLOTS), 0)
+  + Math.floor(firstTrack.trackIndex / SHELF_SLOTS);
 const manifest = JSON.stringify(archiveTracks).replace(/</g, '\\u003c');
 const indexLabel = (index: number, width = 2) => String(index + 1).padStart(width, '0');
 ---
@@ -63,13 +71,17 @@ const indexLabel = (index: number, width = 2) => String(index + 1).padStart(widt
       <section class="archive-stage" aria-label="音乐档案唱片阵列">
         <output class="archive-render-error" id="archive-render-error" hidden></output>
         <div class="archive-toolbar" aria-label="档案显示选项">
-          <div class="toolbar-set"><span>SHOW</span><button type="button" disabled>ALBUMS</button><button class="selected" type="button" aria-pressed="true">TRACKS</button></div>
-          <div class="toolbar-set"><span>LAYOUT</span><button class="selected" type="button" aria-pressed="true" data-layout="array">▰ ARRAY</button><button type="button" data-layout="grid">□ GRID</button></div>
-          <div class="toolbar-set"><span>GROUP</span><button class="selected" type="button" aria-pressed="true" data-group="genre">GENRE</button><button type="button" data-group="decade" disabled>DECADE</button><button type="button" data-group="artist">A–Z</button><button type="button" data-group="none">NONE</button></div>
-          <div class="toolbar-set"><span>SORT</span><button class="selected" type="button" aria-pressed="true" data-sort="artist">ARTIST</button><button type="button" data-sort="title">TITLE</button><button type="button" data-sort="year" disabled>YEAR</button><button type="button" data-sort="added" disabled>ADDED</button></div>
+          <div class="toolbar-row">
+            <div class="toolbar-set"><span>SHOW</span><button type="button" disabled>ALBUMS</button><button class="selected" type="button" aria-pressed="true">TRACKS</button></div>
+            <div class="toolbar-set"><span>LAYOUT</span><button class="selected" type="button" aria-pressed="true" data-layout="array">▰ ARRAY</button><button type="button" data-layout="grid">□ GRID</button></div>
+          </div>
+          <div class="toolbar-row">
+            <div class="toolbar-set"><span>GROUP</span><button class="selected" type="button" aria-pressed="true" data-group="genre">GENRE</button><button type="button" data-group="decade" disabled>DECADE</button><button type="button" data-group="artist">A–Z</button><button type="button" data-group="none">NONE</button></div>
+            <div class="toolbar-set"><span>SORT</span><button class="selected" type="button" aria-pressed="true" data-sort="artist">ARTIST</button><button type="button" data-sort="title">TITLE</button><button type="button" data-sort="year" disabled>YEAR</button><button type="button" data-sort="added" disabled>ADDED</button></div>
+          </div>
         </div>
 
-        <div class="archive-gallery" id="archive-gallery" data-layout="array" data-archive-manifest={manifest} data-shelf-count={shelfCount}>
+        <div class="archive-gallery" id="archive-gallery" data-layout="array" data-archive-manifest={manifest} data-shelf-count={shelfCount} data-initial-selection={firstTrack.globalIndex}>
           <canvas id="archive-canvas" tabindex="0" role="img" aria-label="音乐档案唱片阵列。使用方向键选择唱片，回车检查，空格播放。"></canvas>
           <div class="archive-grid" id="archive-grid" hidden>
             {folders.map((folder, folderIndex) => (
@@ -87,30 +99,28 @@ const indexLabel = (index: number, width = 2) => String(index + 1).padStart(widt
           </div>
         </div>
 
-        <div class="archive-counter"><small>TRACK / SELECT</small><div><strong data-selected-number>01</strong><span>/ <b data-shelf-track-count>{String(initialShelfTrackCount).padStart(2, '0')}</b></span></div></div>
+        <div class="archive-counter"><small>TRACK / SELECT</small><div><strong data-selected-number aria-label={String(firstTrack.trackIndex % SHELF_SLOTS + 1).padStart(2, '0')}>{String(firstTrack.trackIndex % SHELF_SLOTS + 1).padStart(2, '0')}</strong><span>/ <b data-shelf-track-count>{String(SHELF_SLOTS).padStart(2, '0')}</b></span></div></div>
         <div class="archive-ruler" aria-label="唱片索引"><button type="button" data-track-step="-1" aria-label="上一首">↑</button><span data-ruler></span><button type="button" data-track-step="1" aria-label="下一首">↓</button></div>
-        <div class="archive-shelf-switch"><button type="button" data-shelf-step="1" aria-label="下一层唱片架">←</button><div><small>SHELF <span data-shelf-number>01</span> / {String(shelfCount).padStart(2, '0')}</small><strong data-folder-name>{firstFolder.title}</strong></div><button type="button" data-shelf-step="-1" aria-label="上一层唱片架">→</button></div>
+        <div class="archive-shelf-switch"><button type="button" data-shelf-step="1" aria-label="下一层唱片架">←</button><div><small>SHELF <span data-shelf-number>{String(initialShelfIndex + 1).padStart(2, '0')}</span> / {String(shelfCount).padStart(2, '0')}</small><strong data-folder-name>{initialFolder.title}</strong></div><button type="button" data-shelf-step="-1" aria-label="上一层唱片架">→</button></div>
         <button class="inspection-return" id="inspection-return" type="button" hidden>← &nbsp; RETURN TO ARCHIVE</button>
       </section>
 
-      <aside class="archive-file-panel" id="archive-playlists" aria-label="选中音乐详情">
-        {folders.map((folder, folderIndex) => (
+      <aside class="archive-file-panel" id="archive-playlists" data-folder-watermark={initialFolder.title.toUpperCase()} aria-label="选中音乐详情">
+        {folderRecords.map(({ folder, folderIndex, firstTrack: folderFirstTrack }) => (
           <article class="archive-detail" data-detail-folder={folderIndex} hidden={folderIndex !== firstTrack.folderIndex}>
             <div class="detail-breadcrumb">AUDIO ARCHIVE <span>/</span> <b>{folder.title}</b></div>
-            <div class="detail-number"><span>TRACK NO. <strong data-track-number>{indexLabel(firstTrack.globalIndex, 4)}</strong></span><span class="format-chip">■ AUDIO</span></div>
-            <h1 data-current-title>{firstTrack.title}</h1>
-            <p class="detail-artist" data-current-artist>{firstTrack.artist}</p>
-            <p class="detail-meta" data-current-meta>{folder.title.toUpperCase()} / {firstTrack.durationLabel}</p>
+            <div class="detail-number"><span>TRACK NO. <strong data-track-number>{indexLabel(folderFirstTrack.globalIndex, 4)}</strong></span><span class="format-chip">■ MP3</span></div>
+            <h1 data-current-title>{folderFirstTrack.title}</h1>
+            <p class="detail-artist" data-current-artist>{folderFirstTrack.artist}</p>
+            <p class="detail-meta" data-current-meta>{folder.title.toUpperCase()} / {folderFirstTrack.durationLabel}</p>
             <section class="detail-profile" aria-label="音乐信息">
-              <header><strong>PROFILE</strong><span data-profile-code>ARC-{indexLabel(firstTrack.globalIndex, 4)}</span></header>
-              <dl><dt>FORMAT</dt><dd>AUDIO</dd><dt>RES</dt><dd>—</dd><dt>GENRE</dt><dd>{folder.title.toUpperCase()}</dd><dt>TRACKS</dt><dd>{String(folder.tracks.length).padStart(2, '0')}</dd><dt>ADDED</dt><dd>—</dd><dt>SOURCE</dt><dd>PUBLIC / MUSIC</dd></dl>
+              <header><strong>PROFILE</strong><span data-profile-code>ARC-{indexLabel(folderFirstTrack.globalIndex, 4)}</span></header>
+              <dl><dt>FORMAT</dt><dd>AUDIO</dd><dt>RES</dt><dd>—</dd><dt>GENRE</dt><dd>{folder.title.toUpperCase()}</dd><dt>TRACKS</dt><dd>01</dd><dt>ADDED</dt><dd>—</dd><dt>SOURCE</dt><dd>PUBLIC / MUSIC</dd></dl>
             </section>
             <ol class="archive-track-list">
-              {archiveTracks.filter((track) => track.folderIndex === folderIndex).map((track, folderTrackIndex) => (
-                <li data-detail-track data-global-index={track.globalIndex}><button type="button" aria-pressed={track.globalIndex === firstTrack.globalIndex ? 'true' : 'false'}><span>{indexLabel(folderTrackIndex)}</span><strong>{track.title}</strong><time>{track.durationLabel}</time></button></li>
-              ))}
+              <li data-detail-track data-global-index={folderFirstTrack.globalIndex}><button type="button" aria-pressed={folderFirstTrack.globalIndex === firstTrack.globalIndex ? 'true' : 'false'}><span>01</span><strong data-detail-title>{folderFirstTrack.title}</strong><time data-detail-duration>{folderFirstTrack.durationLabel}</time></button></li>
             </ol>
-            <div class="archive-actions"><button class="action-primary" type="button" data-play-track>▶ PLAY TRACK</button><button class="action-secondary" type="button" data-play-folder>OPEN FOLDER <span>↗</span></button></div>
+            <div class="archive-actions"><button class="action-primary" type="button" data-play-track>▶ PLAY TRACK</button><button class="action-secondary" type="button" data-open-folder>OPEN FOLDER <span>↗</span></button></div>
             <small class="detail-source">SOURCE · public/music/{folder.path}</small>
           </article>
         ))}
@@ -119,11 +129,11 @@ const indexLabel = (index: number, width = 2) => String(index + 1).padStart(widt
 
     <footer class="archive-footer" id="archive-player">
       <div class="transport-row">
-        <div class="transport-cover"><img id="transport-cover" src={firstTrack.cover} alt="" /><span></span></div>
+        <div class="transport-cover"><img id="transport-cover" alt="" hidden /><span></span></div>
         <div id="music-player-slot" aria-label="音乐播放控制">
           {folders.map((folder) => (
             <div data-music-category={folder.path} hidden>
-              <MusicPlayer playlist={{ slug: folder.path, title: folder.title }} tracks={folder.tracks} showTrackList={false} />
+              <MusicPlayer playlist={{ slug: folder.path, title: folder.title }} tracks={folder.tracks} showTrackList={false} defaultVolume={1} />
             </div>
           ))}
         </div>

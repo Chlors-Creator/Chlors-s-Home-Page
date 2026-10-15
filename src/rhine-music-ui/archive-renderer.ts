@@ -1,8 +1,9 @@
 import {
-  CASE_SCALE, ROW_PITCH, SHELF_SLOTS, SLOT_PITCH, clamp, easeInOut, getArchiveGeometry, projectPoint,
+  CASE_SCALE, ROW_PITCH, SHELF_SLOTS, SLOT_PITCH, clamp, easeInOut, getArchiveGeometry, indexShelfTracks, projectPoint,
   type ArchiveGeometry, type ArchiveTrack, type CaseMeta, type CaseMotion, type Point, type RailMeta, type Shelf,
 } from './archive-model';
 import { drawCase, drawInspection, type CaseHit, type InspectionReturnRect } from './archive-case-renderer';
+import { drawArchiveFloor, loadArchiveFloor, type ArchiveFloorAssets } from './archive-floor-renderer';
 
 const ROOT = '/assets/rhine-audio-archive';
 const PIXEL_RATIO_LIMIT = 2;
@@ -17,7 +18,8 @@ const BACKGROUND = '#0b0b0b';
 
 export interface ArchiveAssets {
   cases: CaseMeta; rail: RailMeta; clear: HTMLImageElement; frost: HTMLImageElement;
-  rails: Record<'front' | 'mid' | 'back', HTMLImageElement>; covers: Map<string, HTMLImageElement>; inspection: HTMLImageElement[];
+  floor: ArchiveFloorAssets; rails: Record<'front' | 'mid' | 'back', HTMLImageElement>;
+  covers: Map<string, HTMLImageElement>; inspection: HTMLImageElement[];
 }
 export interface RenderState {
   selected: number; hovered: number; shelfOffset: Map<number, number>; rowPositions: Map<number, number>;
@@ -39,6 +41,10 @@ interface ShelfDrawOptions extends SceneOptions { shelf: Shelf }
 async function readJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Unable to load archive metadata ${url}: ${response.status}`);
+  const contentType = response.headers.get('content-type') ?? 'unknown content type';
+  if (!contentType.includes('json')) {
+    throw new Error(`Archive metadata ${url} returned ${contentType} (HTTP ${response.status}); expected JSON.`);
+  }
   return response.json() as Promise<T>;
 }
 
@@ -49,15 +55,21 @@ async function loadImage(url: string): Promise<HTMLImageElement> {
   return image;
 }
 
-export async function loadArchiveAssets(tracks: ArchiveTrack[]): Promise<ArchiveAssets> {
-  const [cases, rail, clear, frost, front, mid, back] = await Promise.all([
+export async function loadArchiveAssets(): Promise<ArchiveAssets> {
+  const [cases, rail, clear, frost, front, mid, back, floor] = await Promise.all([
     readJson<CaseMeta>(`${ROOT}/case/white/case.json`), readJson<RailMeta>(`${ROOT}/rail/rail.json`),
     loadImage(`${ROOT}/case/white/array-clear.png`), loadImage(`${ROOT}/case/white/array-frost.png`),
     loadImage(`${ROOT}/rail/rail-front.png`), loadImage(`${ROOT}/rail/rail-mid.png`), loadImage(`${ROOT}/rail/rail-back.png`),
+    loadArchiveFloor(),
   ]);
-  const covers = new Map(await Promise.all([...new Set(tracks.map((track) => track.cover))]
-    .map(async (url) => [url, await loadImage(url)] as const)));
-  return { cases, rail, clear, frost, rails: { front, mid, back }, covers, inspection: [] };
+  return { cases, rail, clear, frost, floor, rails: { front, mid, back }, covers: new Map(), inspection: [] };
+}
+
+export async function loadArchiveCovers(tracks: ArchiveTrack[], assets: ArchiveAssets, onCoverLoaded: () => void): Promise<void> {
+  await Promise.all([...new Set(tracks.map((track) => track.cover))].map(async (url) => {
+    assets.covers.set(url, await loadImage(url));
+    onCoverLoaded();
+  }));
 }
 
 function rowAlpha(row: number, count: number): number {
@@ -118,12 +130,12 @@ interface RailItemsOptions extends ShelfDrawOptions { row: number; rowX: number;
 function makeRailItems(options: RailItemsOptions): SceneItem[] {
   const { assets, shelf, state, geometry, row, rowX, scroll } = options;
   const items: SceneItem[] = [];
-  for (let slot = -1; slot <= shelf.tracks.length; slot++) {
+  for (let slot = -1; slot <= SHELF_SLOTS; slot++) {
     const y = (slot - scroll) * SLOT_PITCH;
     if (y < -ARRAY_ROW_TOP_LIMIT || y > ARRAY_ROW_BOTTOM_LIMIT) continue;
     const point = projectPoint({ meta: assets.cases, origin: geometry.origin, k: geometry.k,
       x: rowX, y, z: 0, rowScaleX: geometry.scaleX, rowScaleY: geometry.scaleY });
-    items.push({ close: RAIL_ROW_DEPTH * y, rail: slot < 0 ? 'front' : slot >= shelf.tracks.length ? 'back' : 'mid', point });
+    items.push({ close: RAIL_ROW_DEPTH * y, rail: slot < 0 ? 'front' : slot >= SHELF_SLOTS ? 'back' : 'mid', point });
   }
   return items;
 }
@@ -158,11 +170,15 @@ function selectedCaseLift(progress: number): number {
 function drawInspectionAtSelection(options: ShelfDrawOptions & { width: number; height: number }): InspectionReturnRect | null {
   const { ctx, assets, shelf, state, geometry, width, height } = options;
   if (state.inspectionProgress <= INSPECTION_LIFT_END) return null;
-  const slot = state.selected % SHELF_SLOTS;
+  const slot = shelf.tracks.findIndex((track) => track.globalIndex === state.selected);
+  if (slot < 0) throw new Error(`Selected track is missing from shelf ${shelf.index + 1}.`);
   const scroll = state.shelfOffset.get(shelf.index) ?? 0;
   const row = state.rowPositions.get(shelf.index) ?? shelf.index - geometry.start;
+  const motion = state.motion.get(state.selected);
+  if (!motion) throw new Error(`Archive motion state is missing for item ${state.selected}.`);
+  const lift = motion.lift.x + SELECTED_CASE_LIFT * easeInOut(clamp(state.inspectionProgress, 0, 1));
   const point = projectPoint({ meta: assets.cases, origin: geometry.origin, k: geometry.k,
-    x: -row * ROW_PITCH, y: (slot - scroll) * SLOT_PITCH, z: 0,
+    x: -row * ROW_PITCH, y: (slot - scroll) * SLOT_PITCH + motion.gap.x, z: lift,
     rowScaleX: geometry.scaleX, rowScaleY: geometry.scaleY });
   const from = { x: point.x + (assets.cases.array.center[0] - assets.cases.array.origin[0]) * geometry.k,
     y: point.y + (assets.cases.array.center[1] - assets.cases.array.origin[1]) * geometry.k };
@@ -177,12 +193,16 @@ export function drawArchiveScene(
 ): RenderResult {
   const { width, height, tracks, shelves, assets, state } = options;
   const pixelRatio = Math.min(window.devicePixelRatio || 1, PIXEL_RATIO_LIMIT);
-  const selectedShelf = Math.floor(state.selected / SHELF_SLOTS);
+  const location = indexShelfTracks(shelves).get(state.selected);
+  if (!location) throw new Error(`Archive selection has no shelf: ${state.selected}`);
+  const selectedShelf = location.shelf;
   const geometry = getArchiveGeometry({ width, height, meta: assets.cases, shelfCount: shelves.length, selectedShelf });
   const selected = tracks[state.selected];
   if (!selected) throw new Error(`Archive selection is outside the library: ${state.selected}`);
   ctx.save(); ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   ctx.fillStyle = BACKGROUND; ctx.fillRect(0, 0, width, height);
+  ctx.beginPath(); ctx.rect(0, 0, geometry.arrayWidth, height); ctx.clip();
+  drawArchiveFloor({ ctx, assets: assets.floor, cases: assets.cases, geometry, shelves, state, selectedShelf });
   const hits = drawShelves({ ctx, assets, shelves, state, geometry, selectedShelf, width, height });
   const activeShelf = shelves[selectedShelf];
   const returnRect = activeShelf ? drawInspectionAtSelection({ ctx, assets, shelf: activeShelf, state, geometry, width, height }) : null;

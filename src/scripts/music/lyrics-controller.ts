@@ -16,6 +16,7 @@ export function createLyricsController({ lines, empty }: LyricsElements): Lyrics
   let activeLyric = -1;
   let loadedLyricsSrc: string | null | undefined;
   let requestVersion = 0;
+
   const render = () => {
     if (!lines || !empty) return;
     empty.hidden = currentLyrics.length > 0;
@@ -27,16 +28,20 @@ export function createLyricsController({ lines, empty }: LyricsElements): Lyrics
       lines.append(item);
     });
   };
+
   const load = async (src: string | null | undefined) => {
     if (src === loadedLyricsSrc) return;
     loadedLyricsSrc = src;
     currentLyrics = [];
     activeLyric = -1;
     const request = ++requestVersion;
+
     if (src) {
       try {
         const cached = cache.get(src);
-        const text = cached ? null : await fetch(src).then((response) => response.ok ? response.text() : Promise.reject(new Error('lyrics')));
+        const text = cached
+          ? null
+          : await fetch(src).then((response) => response.ok ? response.text() : Promise.reject(new Error('lyrics')));
         if (request !== requestVersion) return;
         currentLyrics = cached || parseLrc(text || '');
         if (!cached) cache.set(src, currentLyrics);
@@ -46,6 +51,7 @@ export function createLyricsController({ lines, empty }: LyricsElements): Lyrics
     }
     render();
   };
+
   const sync = (time: number) => {
     if (!currentLyrics.length) return;
     const nextLyric = findActiveLyricIndex(currentLyrics, time);
@@ -54,5 +60,6 @@ export function createLyricsController({ lines, empty }: LyricsElements): Lyrics
     render();
     lines?.querySelector('[data-active]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
+
   return { load, sync };
 }

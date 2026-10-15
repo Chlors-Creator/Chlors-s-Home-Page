@@ -8,6 +8,7 @@ const cleanups = new WeakMap<HTMLElement, () => void>();
 
 function initialize(root: HTMLElement): void {
   if (cleanups.has(root)) return;
+
   const controller = getSharedController();
   const localTracks: Track[] = JSON.parse(root.dataset.trackManifest || '[]');
   const localQueue: Queue | undefined = localTracks.length ? {
@@ -23,6 +24,7 @@ function initialize(root: HTMLElement): void {
   const unbindView = view.bind();
   const unsubscribe = controller.subscribe(view.render);
   const unbindMotion = bindPlayerMotion(root, view.expand, view.lyrics);
+
   cleanups.set(root, () => {
     unsubscribe();
     unbindView();
