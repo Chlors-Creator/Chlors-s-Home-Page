@@ -38,33 +38,29 @@ for (const definition of definitions as PlaylistDefinition[]) {
   }
 }
 
-const playlistEntries = Object.entries(tracksByDirectory).sort(([left], [right]) =>
-  left.localeCompare(right, "zh-CN", { numeric: true }),
-);
+const playlistEntries = Object.entries(tracksByDirectory)
+  .filter(([, tracks]) => tracks.length > 0)
+  .sort(([left], [right]) => left.localeCompare(right, "zh-CN", { numeric: true }));
 export const archiveColumns = playlistEntries.map(([directory]) => directory);
 export const categories = ["全部档案", ...archiveColumns];
 
 let recordNumber = 0;
 export const records: ArchiveRecord[] = playlistEntries.flatMap(([directory, tracks]) => {
   const definition = definitionsByDirectory.get(directory);
-  const entries = tracks.length ? tracks : [null];
-  return entries.map((track) => {
+  return tracks.map((track) => {
     recordNumber += 1;
-    const title = track?.title ?? definition?.title ?? directory;
     return {
       id: `X-${String(recordNumber).padStart(3, "0")}`,
-      title,
-      en: track?.artist ?? directory.toUpperCase(),
+      title: track.title,
+      en: track.artist,
       department: definition?.title ?? directory,
       category: directory,
       date: `PUBLIC / MUSIC · ${directory}`,
-      lead: track?.artist ?? "PUBLIC / MUSIC",
-      clearance: track ? "AUTHORIZED" : "EMPTY DIRECTORY",
+      lead: track.artist,
+      clearance: "AUTHORIZED",
       abstract: definition?.description ?? `音乐目录：${directory}`,
-      findings: track
-        ? [`${track.title} — ${track.artist}`]
-        : ["当前目录没有曲目。"],
-      source: track?.src ?? "/music/",
+      findings: [`${track.title} — ${track.artist}`],
+      source: track.src,
     };
   });
 });
