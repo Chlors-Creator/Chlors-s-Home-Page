@@ -16,35 +16,35 @@ const isActive = (prefix: string) => path === prefix || path.startsWith(`${prefi
   </div>
 
   <nav class="side-links" aria-label="主导航">
-    <a href="/">
+    <a href="/" data-astro-prefetch="viewport">
       01 主页
       <span class={path === '/' ? 'is-active' : ''}>● {path === '/' ? 'Active' : 'Idle'}</span>
     </a>
-    <a href="/archive/">
+    <a href="/archive/" data-astro-prefetch="viewport">
       02 归档
       <span class={isActive('/archive') ? 'is-active' : ''}>● {isActive('/archive') ? 'Active' : 'Idle'}</span>
     </a>
-    <a href="/topics/">
+    <a href="/topics/" data-astro-prefetch="viewport">
       03 专题
       <span class={isActive('/topics') ? 'is-active' : ''}>● {isActive('/topics') ? 'Active' : 'Idle'}</span>
     </a>
-    <a href="/playlists/">
+    <a href="/playlists/" data-astro-prefetch="viewport">
       04 歌单
       <span class={isActive('/playlists') ? 'is-active' : ''}>● {isActive('/playlists') ? 'Active' : 'Idle'}</span>
     </a>
-    <a href="/journal/">
+    <a href="/journal/" data-astro-prefetch="viewport">
       05 日志
       <span class={isActive('/journal') ? 'is-active' : ''}>● {isActive('/journal') ? 'Active' : 'Idle'}</span>
     </a>
-    <a href="/links/">
+    <a href="/links/" data-astro-prefetch="viewport">
       06 友链
       <span class={isActive('/links') ? 'is-active' : ''}>● {isActive('/links') ? 'Active' : 'Idle'}</span>
     </a>
-    <a href="/about/">
+    <a href="/about/" data-astro-prefetch="viewport">
       07 关于
       <span class={isActive('/about') ? 'is-active' : ''}>● {isActive('/about') ? 'Active' : 'Idle'}</span>
     </a>
-    <a href="/console/">
+    <a href="/console/" data-astro-prefetch="viewport">
       08 控制台
       <span class={isActive('/console') ? 'is-active' : ''}>● {isActive('/console') ? 'Active' : 'Idle'}</span>
     </a>

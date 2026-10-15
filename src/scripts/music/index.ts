@@ -27,10 +27,17 @@ function initialize(root: HTMLElement): void {
 }
 
 function initializeAll(): void {
-  document.querySelectorAll<HTMLElement>('[data-music-player]').forEach(initialize);
+  document.querySelectorAll<HTMLElement>('[data-music-player]').forEach((root) => {
+    if (root.closest('[hidden]')) {
+      cleanups.get(root)?.();
+      return;
+    }
+    initialize(root);
+  });
 }
 
 document.addEventListener('astro:page-load', initializeAll);
+document.addEventListener('rhine-music:category-change', initializeAll);
 document.addEventListener('astro:before-swap', () => {
   document.querySelectorAll<HTMLElement>('[data-music-player]').forEach((root) => cleanups.get(root)?.());
 });

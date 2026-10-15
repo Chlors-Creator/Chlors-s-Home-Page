@@ -135,9 +135,6 @@ main {
   background: var(--paper);
   border-top-left-radius: var(--radius);
 }
-.page-content {
-  view-transition-name: page-content;
-}
 body:before {
   content: "";
   position: fixed;
@@ -162,42 +159,6 @@ body:before {
   color: var(--muted);
   font-size: 11px;
   padding-top: 55px;
-}
-@keyframes page-cover-from-right {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-@keyframes page-hide-under-cover {
-  from {
-    clip-path: inset(0 0 0 0);
-  }
-  to {
-    clip-path: inset(0 100% 0 0);
-  }
-}
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-::view-transition-old(page-content) {
-  z-index: 1;
-  animation: page-hide-under-cover 0.46s cubic-bezier(0.22, 0.61, 0.36, 1) both;
-}
-::view-transition-new(page-content) {
-  z-index: 2;
-  animation: page-cover-from-right 0.46s cubic-bezier(0.22, 0.61, 0.36, 1) both;
-  mix-blend-mode: normal;
-}
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(page-content),
-  ::view-transition-new(page-content) {
-    animation-duration: 0.01ms;
-  }
 }
 @media (max-width: 760px) {
   body:before {
@@ -236,20 +197,6 @@ main {
   .page-content {
     padding: 40px 20px 70px;
   }
-}
-::view-transition-group(page-content) {
-  animation: none;
-}
-::view-transition-new(page-content) {
-  clip-path: inset(0 0 0 -30px);
-}
-::view-transition-new(page-content) {
-  box-shadow: -18px 0 24px rgba(20, 21, 19, 0.32);
-}
-html[data-theme-choice="paper"]::view-transition-new(page-content),
-html[data-theme-choice="white"]::view-transition-new(page-content),
-html[data-theme-choice="black"]::view-transition-new(page-content) {
-  background: var(--paper);
 }
 .presence {
   grid-column: 2;
@@ -323,17 +270,8 @@ html[data-theme-choice="black"]::view-transition-new(page-content) {
   transform: translateY(7px);
 }
 main {
-  view-transition-name: page-content;
-}
-.page-content {
-  view-transition-name: none;
-}
-main {
   height: 100vh;
   overflow-x: clip;
   overflow-y: auto;
   z-index: 1;
-}
-::view-transition-group(page-content) {
-  animation: none;
 }

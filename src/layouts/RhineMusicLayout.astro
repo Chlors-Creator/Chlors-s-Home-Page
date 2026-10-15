@@ -1,0 +1,22 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import '../styles/music-player.css';
+import '../styles/rhine-music.css';
+
+const { title } = Astro.props;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#e8e5e1" />
+    <meta name="description" content="RHINE LAB · 音乐档案终端" />
+    <link rel="icon" type="image/jpeg" href="/favicon.jpg" />
+    <title>{title} // RHINE LAB · ANALYSIS OS</title>
+    <ClientRouter />
+  </head>
+  <body class="rhine-music-body">
+    <slot />
+  </body>
+</html>
