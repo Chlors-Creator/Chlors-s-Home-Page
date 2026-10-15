@@ -1,0 +1,19 @@
+---
+import '../styles/audio-archive.css';
+import '../styles/music-player.css';
+
+const { title } = Astro.props;
+---
+<!doctype html>
+<html lang="zh-CN" data-archive-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101010" />
+    <meta name="description" content="Audio Archive · 音乐档案终端" />
+    <title>{title} // AUDIO ARCHIVE</title>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

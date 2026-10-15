@@ -25,6 +25,7 @@ export interface PlayerController {
   notify(): void;
   playQueue(queue: Queue, index: number): void;
   toggle(fallback?: Queue): void;
+  stop(): void;
   previous(): void;
   next(adjacent?: boolean): void;
   cycleMode(): void;
