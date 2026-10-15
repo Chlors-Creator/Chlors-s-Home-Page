@@ -1,0 +1,52 @@
+---
+import MusicPlayer from '../../components/MusicPlayer.astro';
+import RhineMusicLayout from '../../layouts/RhineMusicLayout.astro';
+import definitions from '../../data/playlists.json';
+import library from '../../generated/music-library.json';
+
+interface PlaylistDefinition {
+  slug: string;
+  title: string;
+  description: string;
+  directory: string;
+  children?: PlaylistDefinition[];
+}
+
+interface MusicTrack {
+  title: string;
+  artist: string;
+  src: string;
+  cover: string;
+  duration: number;
+  durationLabel: string;
+  lyricsSrc: string | null;
+}
+
+const playlists = library.playlists as Record<string, MusicTrack[]>;
+const definitionsByPath = new Map<string, PlaylistDefinition>();
+for (const definition of definitions as PlaylistDefinition[]) {
+  definitionsByPath.set(definition.directory, definition);
+  for (const child of definition.children ?? []) {
+    definitionsByPath.set(`${definition.directory}/${child.directory}`, child);
+  }
+}
+
+const folders = Object.entries(playlists)
+  .sort(([left], [right]) => left.localeCompare(right, 'zh-CN', { numeric: true }))
+  .map(([path, tracks]) => ({
+    path,
+    title: definitionsByPath.get(path)?.title ?? path,
+    tracks,
+  }));
+---
+<RhineMusicLayout title="音乐档案">
+  <div id="music-player-bank" aria-hidden="true">
+    {folders.map((folder) => (
+      <div data-music-category={folder.path} hidden>
+        <MusicPlayer playlist={{ slug: folder.path, title: folder.title }} tracks={folder.tracks} />
+      </div>
+    ))}
+  </div>
+</RhineMusicLayout>
+
+<script src="../../rhine-music-ui/main.ts"></script>
