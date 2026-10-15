@@ -717,14 +717,36 @@ function renderDetail() {
 function overview() {
   return `<div class="panel-label">ABSTRACT / 摘要</div><p>${escapeHtml(records[selected].abstract)}</p><div id="music-player-slot"></div>`;
 }
+function configureMusicPlayer(player: HTMLElement, recordIndex: number) {
+  const record = records[recordIndex];
+  const fullManifest =
+    player.dataset.libraryTrackManifest ?? player.dataset.trackManifest ?? "[]";
+  player.dataset.libraryTrackManifest = fullManifest;
+  const tracks = JSON.parse(fullManifest) as Array<{ src: string }>;
+  const trackIndex = tracks.findIndex((track) => track.src === record.source);
+  const track = trackIndex < 0 ? null : tracks[trackIndex];
+  if (record.source !== "/music/" && !track)
+    throw new Error(`Missing track ${record.source} in ${record.category}.`);
+
+  player.dataset.trackManifest = JSON.stringify(track ? [track] : []);
+  player.dataset.playlistSlug = `${record.category}::${record.id}`;
+  player.dataset.singleTrack = "true";
+  player.querySelectorAll<HTMLElement>("[data-track-index]").forEach((row, index) => {
+    row.hidden = index !== trackIndex;
+    if (index === trackIndex) row.dataset.localTrackIndex = "0";
+    else delete row.dataset.localTrackIndex;
+  });
+}
 function mountMusicPlayer() {
   const slot = document.querySelector<HTMLElement>("#music-player-slot");
   if (!slot) return;
-  const category = records[selected].category;
+  const record = records[selected];
+  const category = record.category;
   const player = [...document.querySelectorAll<HTMLElement>("[data-music-category]")].find(
     (entry) => entry.dataset.musicCategory === category,
   );
   if (!player) throw new Error(`Missing music player for public/music/${category}.`);
+  configureMusicPlayer(player, selected);
   player.hidden = false;
   slot.append(player);
   document.dispatchEvent(new Event("rhine-music:category-change"));
