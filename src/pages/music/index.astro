@@ -1,9 +1,7 @@
 ---
-import { resolve } from 'node:path';
 import MusicPlayer from '../../components/MusicPlayer.astro';
 import RhineMusicLayout from '../../layouts/RhineMusicLayout.astro';
 import definitions from '../../data/playlists.json';
-import { readMusicDirectories, type MusicDirectory } from '../../data/music-directories';
 import library from '../../generated/music-library.json';
 
 interface PlaylistDefinition {
@@ -24,122 +22,31 @@ interface MusicTrack {
   lyricsSrc: string | null;
 }
 
-const musicRoot = resolve(process.cwd(), 'public/music');
-const directoryTree = await readMusicDirectories(musicRoot);
-const musicPlaylists = library.playlists as Record<string, MusicTrack[]>;
-const definitionByPath = new Map<string, PlaylistDefinition>();
-
+const playlists = library.playlists as Record<string, MusicTrack[]>;
+const definitionsByPath = new Map<string, PlaylistDefinition>();
 for (const definition of definitions as PlaylistDefinition[]) {
-  definitionByPath.set(definition.directory, definition);
+  definitionsByPath.set(definition.directory, definition);
   for (const child of definition.children ?? []) {
-    definitionByPath.set(`${definition.directory}/${child.directory}`, child);
+    definitionsByPath.set(`${definition.directory}/${child.directory}`, child);
   }
 }
 
-function flattenDirectories(directories: MusicDirectory[]): MusicDirectory[] {
-  return directories.flatMap((directory) => [
-    directory,
-    ...flattenDirectories(directory.children),
-  ]);
-}
-
-const categories = flattenDirectories(directoryTree).map((directory) => {
-  const definition = definitionByPath.get(directory.path);
-  const tracks = musicPlaylists[directory.path];
-  if (!tracks) {
-    throw new Error(`Missing generated music index for public/music/${directory.path}. Run npm run music:build.`);
-  }
-  return {
-    key: directory.path,
-    name: directory.name,
-    depth: directory.depth,
-    title: definition?.title ?? directory.name,
-    description: definition?.description ?? directory.path,
+const folders = Object.entries(playlists)
+  .sort(([left], [right]) => left.localeCompare(right, 'zh-CN', { numeric: true }))
+  .map(([path, tracks]) => ({
+    path,
+    title: definitionsByPath.get(path)?.title ?? path,
     tracks,
-  };
-});
-
-const selectedCategory = categories.find((category) => category.tracks.length > 0) ?? categories[0];
+  }));
 ---
 <RhineMusicLayout title="音乐档案">
-  <main class="rhine-music" data-rhine-music>
-    <div class="archive-atmosphere" aria-hidden="true"></div>
-    <header class="rhine-header">
-      <a class="rhine-brand" href="/" aria-label="返回个人主页">
-        <svg class="rhine-mark" viewBox="0 0 310 145" aria-hidden="true">
-          <path d="M156 75C127 48 103 15 70 15C37 15 15 39 15 70S38 128 70 128C103 128 127 96 176 52M155 75C182 99 208 128 240 128C273 128 295 105 295 73S273 15 240 15C221 15 207 23 192 38" fill="none" stroke="currentColor" stroke-width="26" />
-          <path d="M44 70h50M69 45v50M219 70h44" fill="none" stroke="currentColor" stroke-width="15" />
-        </svg>
-        <span class="rhine-wordmark"><strong>RHINE LAB</strong><small>SYNTHESIZE INFORMATION</small><b>ANALYSIS <i>OS</i></b></span>
-      </a>
-      <nav class="system-nav" aria-label="系统导航">
-        <a href="#archive-index"><span class="nav-glyph">⌕</span> ARCHIVE INDEX <kbd>/</kbd></a>
-        <span class="system-status"><i></i> LIBRARY READY</span>
-        <a class="return-link" href="/">PROFILE <span>↗</span></a>
-      </nav>
-    </header>
-
-    <section class="archive-intro" aria-labelledby="archive-title">
-      <p class="eyebrow">INTERNAL DATABASE <span>/</span> AUDIO ARCHIVE</p>
-      <div class="intro-line">
-        <div>
-          <h1 id="archive-title">音乐档案</h1>
-          <p>从本地目录读取分类与曲目 · SELECT A FILE TO LISTEN</p>
-        </div>
-        <div class="archive-total"><strong>{String(categories.length).padStart(2, '0')}</strong><span>FOLDERS<br />INDEXED</span></div>
+  <div id="music-player-bank" aria-hidden="true">
+    {folders.map((folder) => (
+      <div data-music-category={folder.path} hidden>
+        <MusicPlayer playlist={{ slug: folder.path, title: folder.title }} tracks={folder.tracks} />
       </div>
-    </section>
-
-    <div class="archive-workspace">
-      <nav class="category-index" id="archive-index" aria-label="音乐文件夹分类">
-        <div class="index-heading"><span>ARCHIVE / SELECT</span><span>{String(categories.length).padStart(2, '0')}</span></div>
-        <div class="category-list">
-          {categories.map((category, index) => (
-            <button
-              class:list={["category-entry", { "is-child": category.depth > 0 }]}
-              type="button"
-              data-category-button={category.key}
-              aria-pressed={category.key === selectedCategory?.key ? 'true' : 'false'}
-            >
-              <span class="category-number">{String(index + 1).padStart(2, '0')}</span>
-              <span class="category-copy"><strong>{category.title}</strong><small>{category.key}</small></span>
-              <span class="category-count">{String(category.tracks.length).padStart(2, '0')}</span>
-              <i aria-hidden="true"></i>
-            </button>
-          ))}
-        </div>
-        <p class="index-note"><span class="status-light"></span> SESSION AUTHORIZED</p>
-      </nav>
-
-      <section class="archive-deck" aria-label="当前音乐分类">
-        {categories.map((category, index) => (
-          <section
-            class="category-panel"
-            data-category-panel={category.key}
-            data-category-index={String(index + 1).padStart(2, '0')}
-            hidden={category.key !== selectedCategory?.key}
-            aria-label={category.title}
-          >
-            <header class="category-heading">
-              <div>
-                <p class="eyebrow">FOLDER {category.key.toUpperCase().replaceAll('/', ' / ')}</p>
-                <h2>{category.title}</h2>
-                <p class="category-description">{category.description}</p>
-              </div>
-              <div class="file-count"><strong>{String(category.tracks.length).padStart(2, '0')}</strong><span>TRACKS</span></div>
-            </header>
-            <MusicPlayer playlist={{ slug: category.key, title: category.title }} tracks={category.tracks} />
-          </section>
-        ))}
-      </section>
-    </div>
-
-    <footer class="rhine-footer">
-      <span>LOCAL MUSIC INDEX <b>·</b> PUBLIC / MUSIC</span>
-      <span>INTERFACE INSPIRED BY <a href="https://github.com/LBEILC/RhineLabUI" target="_blank" rel="noreferrer">RHINELABUI</a> · <a href="/licenses/RhineLabUI-LICENSE.txt">MIT LICENSE</a></span>
-      <span class="powered">POWERED BY <b>RHINE LAB</b><i></i></span>
-    </footer>
-  </main>
+    ))}
+  </div>
 </RhineMusicLayout>
 
-<script src="../../scripts/music/category-index.ts"></script>
+<script src="../../rhine-music-ui/main.ts"></script>

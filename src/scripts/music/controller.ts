@@ -112,7 +112,7 @@ export function createController(): PlayerController {
       controller.notify();
     },
     toggle(fallback) {
-      if (!controller.queue && fallback?.tracks.length) {
+      if (fallback?.tracks.length && controller.queue?.slug !== fallback.slug) {
         controller.playQueue(fallback, 0);
         return;
       }
