@@ -10,7 +10,12 @@ function initialize(root: HTMLElement): void {
   if (cleanups.has(root)) return;
   const controller = getSharedController();
   const localTracks: Track[] = JSON.parse(root.dataset.trackManifest || '[]');
-  const localQueue: Queue | undefined = localTracks.length ? { slug: root.dataset.playlistSlug || '', title: root.getAttribute('aria-label')?.replace(/播放器$/, '') || '', tracks: localTracks } : undefined;
+  const localQueue: Queue | undefined = localTracks.length ? {
+    slug: root.dataset.playlistSlug || '',
+    title: root.getAttribute('aria-label')?.replace(/播放器$/, '') || '',
+    tracks: localTracks,
+    singleTrack: root.dataset.singleTrack === 'true',
+  } : undefined;
   const lyricLines = root.querySelector<HTMLOListElement>('[data-lyrics-lines]');
   const emptyLyrics = root.querySelector<HTMLElement>('[data-lyrics-empty]');
   const lyricsController = createLyricsController({ lines: lyricLines, empty: emptyLyrics });

@@ -742,13 +742,15 @@ function mountMusicPlayer() {
   if (!slot) return;
   const record = records[selected];
   const category = record.category;
-  const player = [...document.querySelectorAll<HTMLElement>("[data-music-category]")].find(
+  const categoryPlayer = [...document.querySelectorAll<HTMLElement>("[data-music-category]")].find(
     (entry) => entry.dataset.musicCategory === category,
   );
-  if (!player) throw new Error(`Missing music player for public/music/${category}.`);
+  if (!categoryPlayer) throw new Error(`Missing music player for public/music/${category}.`);
+  const player = categoryPlayer.querySelector<HTMLElement>("[data-music-player]");
+  if (!player) throw new Error(`Missing player contents for public/music/${category}.`);
   configureMusicPlayer(player, selected);
-  player.hidden = false;
-  slot.append(player);
+  categoryPlayer.hidden = false;
+  slot.append(categoryPlayer);
   document.dispatchEvent(new Event("rhine-music:category-change"));
 }
 function returnMusicPlayer() {

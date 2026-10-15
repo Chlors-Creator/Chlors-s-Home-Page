@@ -13,6 +13,7 @@ export interface Queue {
   slug: string;
   title: string;
   tracks: Track[];
+  singleTrack?: boolean;
 }
 
 export interface PlayerController {

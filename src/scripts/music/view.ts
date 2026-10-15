@@ -45,18 +45,22 @@ export function createPlayerView(
   const rows = [...root.querySelectorAll<HTMLElement>("[data-track-index]")];
   const expand = query<HTMLButtonElement>("[data-expand-player]");
   const lyrics = query<HTMLElement>("[data-lyrics]");
+  const singleTrackPlayer = root.dataset.singleTrack === "true";
   const render = () => {
-    const track = controller.queue?.tracks[controller.current];
-    const audio = controller.audio;
+    const queueMatchesPlayer = controller.queue?.slug === localQueue?.slug;
+    const audio = singleTrackPlayer && !queueMatchesPlayer
+      ? null
+      : controller.audio;
+    const track = singleTrackPlayer && !queueMatchesPlayer
+      ? localTracks[0]
+      : controller.queue?.tracks[controller.current] || localTracks[0];
     const played =
       audio && Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
     const total =
       audio && Number.isFinite(audio.duration) && audio.duration > 0
         ? audio.duration
         : track?.duration || 0;
-    const isPlaying = Boolean(
-      audio && !audio.paused && !audio.ended && !audio.error,
-    );
+    const isPlaying = Boolean(audio && !audio.paused && !audio.ended && !audio.error);
     setHidden(playIcon, isPlaying);
     setHidden(pauseIcon, !isPlaying);
     if (playPause) {
@@ -95,19 +99,19 @@ export function createPlayerView(
         `播放模式：${MODE_LABELS[controller.mode]}`,
       );
       modeButton.title = MODE_LABELS[controller.mode];
-      modeButton.disabled = !track && !localQueue;
+      modeButton.disabled = (!track && !localQueue) || (singleTrackPlayer && localQueue?.tracks.length === 1);
     }
     root
       .querySelectorAll<HTMLButtonElement>("[data-prev], [data-next]")
       .forEach((button) => {
-        button.disabled = !track;
+        button.disabled = !track || (singleTrackPlayer && localQueue?.tracks.length === 1);
       });
     if (volume) volume.disabled = !track && !localQueue;
     rows.forEach((row) =>
       row.toggleAttribute(
         "data-active",
-        controller.queue?.slug === localQueue?.slug &&
-          Number(row.dataset.trackIndex) === controller.current,
+        queueMatchesPlayer &&
+          Number(row.dataset.localTrackIndex ?? row.dataset.trackIndex) === controller.current,
       ),
     );
     void lyricsController.load(track?.lyricsSrc);
@@ -148,7 +152,7 @@ export function createPlayerView(
         "click",
         () =>
           localQueue &&
-          controller.playQueue(localQueue, Number(row.dataset.trackIndex)),
+          controller.playQueue(localQueue, Number(row.dataset.localTrackIndex ?? row.dataset.trackIndex)),
       ]),
     );
     listeners.forEach(([element, event, handler]) =>

@@ -82,6 +82,10 @@ export function createController(): PlayerController {
             stop: () => {
               if (!ended) return;
               ended = false;
+              if (controller.queue?.singleTrack) {
+                controller.notify();
+                return;
+              }
               const next = nextIndex({
                 mode: controller.mode,
                 current: controller.current,
@@ -112,7 +116,8 @@ export function createController(): PlayerController {
             current: controller.current,
             length: controller.queue?.tracks.length || 0,
           });
-          if (next === null) setPlaybackState(false);
+          if (controller.queue?.singleTrack || next === null)
+            setPlaybackState(false);
           controller.notify();
         };
         const onStart = () => {
