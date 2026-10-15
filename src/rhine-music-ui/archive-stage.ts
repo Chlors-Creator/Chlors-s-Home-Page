@@ -317,6 +317,6 @@ function reportRenderError(error: unknown): void {
   console.error('Audio archive rendering failed.', error);
   const panel = page.querySelector<HTMLOutputElement>('#archive-render-error');
   if (!panel) throw new Error(`Audio archive renderer failed: ${message}`);
-  panel.textContent = `ARCHIVE RENDER ERROR\n${message}`;
+  panel.textContent = `档案渲染错误\n${message}`;
   panel.hidden = false;
 }

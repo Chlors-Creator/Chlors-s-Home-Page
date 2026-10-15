@@ -1,13 +1,13 @@
 ---
 interface Track { title: string; artist: string; cover: string; durationLabel: string; src: string; lyricsSrc: string | null; }
-const { playlist = null, tracks = [], showTrackList = true } = Astro.props as { playlist?: { slug: string; title: string } | null; tracks?: Track[]; showTrackList?: boolean };
+const { playlist = null, tracks = [], showTrackList = true, defaultVolume = 0.8 } = Astro.props as { playlist?: { slug: string; title: string } | null; tracks?: Track[]; showTrackList?: boolean; defaultVolume?: number };
 const manifest = JSON.stringify(tracks);
 const playerLabel = playlist ? `${playlist.title}播放器` : '主页播放器';
 ---
-<section class:list={['music-player', { 'home-music-player': !showTrackList }]} data-music-player data-playlist-slug={playlist?.slug || ''} data-track-manifest={manifest} data-home-player={!showTrackList ? 'true' : undefined} aria-label={playerLabel}>
+<section class:list={['music-player', { 'home-music-player': !showTrackList }]} data-music-player data-playlist-slug={playlist?.slug || ''} data-track-manifest={manifest} data-home-player={!showTrackList ? 'true' : undefined} data-default-volume={defaultVolume} aria-label={playerLabel}>
   <div class="player-surface">
     <button type="button" class="expand-player" data-expand-player aria-expanded="false" aria-label="展开播放器" title="展开播放器">⤢</button>
-    <div class="player-heading"><span class="player-kicker">NOW PLAYING{playlist ? ` / ${playlist.title}` : ''}</span><strong data-player-title>{tracks.length ? tracks[0].title : '暂无正在播放'}</strong><span data-player-artist>{tracks.length ? tracks[0].artist : '—'}</span></div>
+    <div class="player-heading"><span class="player-kicker">正在播放{playlist ? ` / ${playlist.title}` : ''}</span><strong data-player-title>{tracks.length ? tracks[0].title : '暂无正在播放'}</strong><span data-player-artist>{tracks.length ? tracks[0].artist : '—'}</span></div>
     <div class="player-controls">
       <button class="mode-button" type="button" data-mode-button aria-label="播放模式：列表循环" title="列表循环">
         <svg data-mode-icon="single" hidden viewBox="0 0 24 24" aria-hidden="true"><path d="M17 4H10a8 8 0 1 0 8 8" /><path class="mode-arrow" d="m16 1 5 3-5 3z" /><path d="m8.25 9.25 2-1v7m-2 0h4" /></svg>
@@ -16,7 +16,7 @@ const playerLabel = playlist ? `${playlist.title}播放器` : '主页播放器';
         <svg data-mode-icon="shuffle" hidden viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2c6 0 6 14 12 14h2M3 19h2c2.5 0 4-2.5 5.4-5.5M13 8.5C14 6.5 15.3 5 17 5h2" /><path class="mode-arrow" d="m18 2 4 3-4 3zM18 16l4 3-4 3z" /></svg>
       </button>
       <div class="transport-controls"><button type="button" data-prev aria-label="上一首" title="上一首">|◀</button><button class="play-button" type="button" data-play-pause aria-label="播放" title="播放"><svg data-play-icon viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.75v14.5L19 12 7 4.75Z" /></svg><svg data-pause-icon hidden viewBox="0 0 24 24" aria-hidden="true"><rect x="6.1" y="4.5" width="4" height="15" rx="1" /><rect x="13.9" y="4.5" width="4" height="15" rx="1" /></svg></button><button type="button" data-next aria-label="下一首" title="下一首">▶|</button><button type="button" data-stop aria-label="停止" title="停止">■</button></div>
-      <label class="volume-control" aria-label="音量"><span>VOL</span><input data-volume type="range" min="0" max="1" step="0.01" value="0.8" aria-label="音量" /></label>
+      <label class="volume-control" aria-label="音量"><span>音量</span><input data-volume type="range" min="0" max="1" step="0.01" value={defaultVolume} aria-label="音量" /><output data-volume-value>100</output></label>
     </div>
     <div class="progress-control"><div class="progress-rail" data-progress tabindex="0" role="slider" aria-label="播放进度" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"><span data-progress-fill></span><span data-progress-thumb></span></div><div class="time-labels"><span data-elapsed>0:00</span><span data-duration>0:00</span></div></div>
     <section class="lyrics-panel" data-lyrics hidden aria-label="实时歌词"><p data-lyrics-empty>纯音乐，请欣赏</p><ol data-lyrics-lines></ol></section>

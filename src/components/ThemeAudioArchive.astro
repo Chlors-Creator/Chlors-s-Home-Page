@@ -51,20 +51,20 @@ const indexLabel = (index: number, width = 2) => String(index + 1).padStart(widt
 <AudioArchiveLayout title="音乐档案">
   <main id="audio-archive-page">
     <header class="archive-topbar">
-      <a class="archive-brand" href="#archive" aria-label="Audio Archive 首页">
+      <a class="archive-brand" href="#archive" aria-label="音乐档案首页">
         <span class="archive-emblem" aria-hidden="true"><canvas id="archive-emblem" width="184" height="88"></canvas></span>
-        <span class="archive-brand-copy"><strong>AUDIO ARCHIVE</strong><small>SIGNAL　·　LIBRARY　·　PLAYBACK</small><b>LISTENING　TERMINAL</b></span>
+        <span class="archive-brand-copy"><strong>AUDIO ARCHIVE</strong><small>信号　·　曲库　·　播放</small><b>聆听终端</b></span>
       </a>
       <nav class="archive-nav" aria-label="档案导航">
-        <a class="active" href="#archive"><small>01</small> ARCHIVE</a>
-        <a href="#archive-playlists"><small>02</small> PLAYLISTS</a>
-        <a href="#archive-player"><small>03</small> LYRICS</a>
-        <a href="#archive-player"><small>04</small> SIGNAL</a>
-        <a href="#archive-player"><small>05</small> STYLE</a>
+        <a class="active" href="#archive"><small>01</small> 档案</a>
+        <a href="#archive-playlists"><small>02</small> 歌单</a>
+        <a href="#archive-player"><small>03</small> 歌词</a>
+        <a href="#archive-player"><small>04</small> 信号</a>
+        <a href="#archive-player"><small>05</small> 风格</a>
       </nav>
-      <label class="archive-search"><span>SEARCH ARCHIVE</span><input id="archive-search" type="search" aria-label="搜索音乐档案" /><b aria-hidden="true">⌕</b></label>
+      <label class="archive-search"><span>搜索曲库</span><input id="archive-search" type="search" aria-label="搜索音乐档案" /><b aria-hidden="true">⌕</b></label>
       <time class="archive-clock"><strong id="archive-clock">00:00:00</strong><small id="archive-date">--</small></time>
-      <button class="archive-menu" type="button" aria-label="切换明暗主题" data-theme-toggle><span aria-hidden="true">☰</span> MENU</button>
+      <button class="archive-menu" type="button" aria-label="切换明暗主题" data-theme-toggle><span aria-hidden="true">☰</span> 菜单</button>
     </header>
 
     <div class="archive-workspace" id="archive">
@@ -72,12 +72,12 @@ const indexLabel = (index: number, width = 2) => String(index + 1).padStart(widt
         <output class="archive-render-error" id="archive-render-error" hidden></output>
         <div class="archive-toolbar" aria-label="档案显示选项">
           <div class="toolbar-row">
-            <div class="toolbar-set"><span>SHOW</span><button type="button" disabled>ALBUMS</button><button class="selected" type="button" aria-pressed="true">TRACKS</button></div>
-            <div class="toolbar-set"><span>LAYOUT</span><button class="selected" type="button" aria-pressed="true" data-layout="array">▰ ARRAY</button><button type="button" data-layout="grid">□ GRID</button></div>
+            <div class="toolbar-set"><span>显示</span><button type="button" disabled>专辑</button><button class="selected" type="button" aria-pressed="true">曲目</button></div>
+            <div class="toolbar-set"><span>布局</span><button class="selected" type="button" aria-pressed="true" data-layout="array">▰ 阵列</button><button type="button" data-layout="grid">□ 网格</button></div>
           </div>
           <div class="toolbar-row">
-            <div class="toolbar-set"><span>GROUP</span><button class="selected" type="button" aria-pressed="true" data-group="genre">GENRE</button><button type="button" data-group="decade" disabled>DECADE</button><button type="button" data-group="artist">A–Z</button><button type="button" data-group="none">NONE</button></div>
-            <div class="toolbar-set"><span>SORT</span><button class="selected" type="button" aria-pressed="true" data-sort="artist">ARTIST</button><button type="button" data-sort="title">TITLE</button><button type="button" data-sort="year" disabled>YEAR</button><button type="button" data-sort="added" disabled>ADDED</button></div>
+            <div class="toolbar-set"><span>分组</span><button class="selected" type="button" aria-pressed="true" data-group="genre">流派</button><button type="button" data-group="decade" disabled>年代</button><button type="button" data-group="artist">艺人</button><button type="button" data-group="none">无</button></div>
+            <div class="toolbar-set"><span>排序</span><button class="selected" type="button" aria-pressed="true" data-sort="artist">艺人</button><button type="button" data-sort="title">标题</button><button type="button" data-sort="year" disabled>年份</button><button type="button" data-sort="added" disabled>收录时间</button></div>
           </div>
         </div>
 
@@ -86,7 +86,7 @@ const indexLabel = (index: number, width = 2) => String(index + 1).padStart(widt
           <div class="archive-grid" id="archive-grid" hidden>
             {folders.map((folder, folderIndex) => (
               <section class="grid-folder" data-grid-folder={folderIndex}>
-                <header><span>FOLDER / {indexLabel(folderIndex)}</span><strong>{folder.title.toUpperCase()}</strong><small>{folder.tracks.length} TRACKS</small></header>
+                <header><span>歌单 / {indexLabel(folderIndex)}</span><strong>{folder.title.toUpperCase()}</strong><small>{folder.tracks.length} 首曲目</small></header>
                 <div class="grid-folder-tracks">
                   {archiveTracks.filter((track) => track.folderIndex === folderIndex).map((track) => (
                     <button class="grid-track" type="button" data-grid-track data-global-index={track.globalIndex}>
@@ -99,29 +99,29 @@ const indexLabel = (index: number, width = 2) => String(index + 1).padStart(widt
           </div>
         </div>
 
-        <div class="archive-counter"><small>TRACK / SELECT</small><div><strong data-selected-number aria-label={String(firstTrack.trackIndex % SHELF_SLOTS + 1).padStart(2, '0')}>{String(firstTrack.trackIndex % SHELF_SLOTS + 1).padStart(2, '0')}</strong><span>/ <b data-shelf-track-count>{String(SHELF_SLOTS).padStart(2, '0')}</b></span></div></div>
+        <div class="archive-counter"><small>曲目 / 选择</small><div><strong data-selected-number aria-label={String(firstTrack.trackIndex % SHELF_SLOTS + 1).padStart(2, '0')}>{String(firstTrack.trackIndex % SHELF_SLOTS + 1).padStart(2, '0')}</strong><span>/ <b data-shelf-track-count>{String(SHELF_SLOTS).padStart(2, '0')}</b></span></div></div>
         <div class="archive-ruler" aria-label="唱片索引"><button type="button" data-track-step="-1" aria-label="上一首">↑</button><span data-ruler></span><button type="button" data-track-step="1" aria-label="下一首">↓</button></div>
-        <div class="archive-shelf-switch"><button type="button" data-shelf-step="1" aria-label="下一层唱片架">←</button><div><small>SHELF <span data-shelf-number>{String(initialShelfIndex + 1).padStart(2, '0')}</span> / {String(shelfCount).padStart(2, '0')}</small><strong data-folder-name>{initialFolder.title}</strong></div><button type="button" data-shelf-step="-1" aria-label="上一层唱片架">→</button></div>
-        <button class="inspection-return" id="inspection-return" type="button" hidden>← &nbsp; RETURN TO ARCHIVE</button>
+        <div class="archive-shelf-switch"><button type="button" data-shelf-step="1" aria-label="下一层唱片架">←</button><div><small>唱片架 <span data-shelf-number>{String(initialShelfIndex + 1).padStart(2, '0')}</span> / {String(shelfCount).padStart(2, '0')}</small><strong data-folder-name>{initialFolder.title}</strong></div><button type="button" data-shelf-step="-1" aria-label="上一层唱片架">→</button></div>
+        <button class="inspection-return" id="inspection-return" type="button" hidden>← &nbsp; 返回档案</button>
       </section>
 
       <aside class="archive-file-panel" id="archive-playlists" data-folder-watermark={initialFolder.title.toUpperCase()} aria-label="选中音乐详情">
         {folderRecords.map(({ folder, folderIndex, firstTrack: folderFirstTrack }) => (
           <article class="archive-detail" data-detail-folder={folderIndex} hidden={folderIndex !== firstTrack.folderIndex}>
-            <div class="detail-breadcrumb">AUDIO ARCHIVE <span>/</span> <b>{folder.title}</b></div>
-            <div class="detail-number"><span>TRACK NO. <strong data-track-number>{indexLabel(folderFirstTrack.globalIndex, 4)}</strong></span><span class="format-chip">■ MP3</span></div>
+            <div class="detail-breadcrumb">音乐档案 <span>/</span> <b>{folder.title}</b></div>
+            <div class="detail-number"><span>曲目编号 <strong data-track-number>{indexLabel(folderFirstTrack.globalIndex, 4)}</strong></span><span class="format-chip">■ MP3</span></div>
             <h1 data-current-title>{folderFirstTrack.title}</h1>
             <p class="detail-artist" data-current-artist>{folderFirstTrack.artist}</p>
             <p class="detail-meta" data-current-meta>{folder.title.toUpperCase()} / {folderFirstTrack.durationLabel}</p>
             <section class="detail-profile" aria-label="音乐信息">
-              <header><strong>PROFILE</strong><span data-profile-code>ARC-{indexLabel(folderFirstTrack.globalIndex, 4)}</span></header>
-              <dl><dt>FORMAT</dt><dd>AUDIO</dd><dt>RES</dt><dd>—</dd><dt>GENRE</dt><dd>{folder.title.toUpperCase()}</dd><dt>TRACKS</dt><dd>01</dd><dt>ADDED</dt><dd>—</dd><dt>SOURCE</dt><dd>PUBLIC / MUSIC</dd></dl>
+              <header><strong>信息</strong><span data-profile-code>ARC-{indexLabel(folderFirstTrack.globalIndex, 4)}</span></header>
+              <dl><dt>格式</dt><dd>音频</dd><dt>规格</dt><dd>—</dd><dt>流派</dt><dd>{folder.title.toUpperCase()}</dd><dt>曲目</dt><dd>01</dd><dt>收录</dt><dd>—</dd><dt>来源</dt><dd>公开曲库</dd></dl>
             </section>
             <ol class="archive-track-list">
               <li data-detail-track data-global-index={folderFirstTrack.globalIndex}><button type="button" aria-pressed={folderFirstTrack.globalIndex === firstTrack.globalIndex ? 'true' : 'false'}><span>01</span><strong data-detail-title>{folderFirstTrack.title}</strong><time data-detail-duration>{folderFirstTrack.durationLabel}</time></button></li>
             </ol>
-            <div class="archive-actions"><button class="action-primary" type="button" data-play-track>▶ PLAY TRACK</button><button class="action-secondary" type="button" data-open-folder>OPEN FOLDER <span>↗</span></button></div>
-            <small class="detail-source">SOURCE · public/music/{folder.path}</small>
+            <div class="archive-actions"><button class="action-primary" type="button" data-play-track>▶ 播放曲目</button><button class="action-secondary" type="button" data-open-folder>打开歌单 <span>↗</span></button></div>
+            <small class="detail-source">来源 · public/music/{folder.path}</small>
           </article>
         ))}
       </aside>
@@ -137,9 +137,9 @@ const indexLabel = (index: number, width = 2) => String(index + 1).padStart(widt
             </div>
           ))}
         </div>
-        <div class="transport-options"><button type="button" data-shuffle-all>▧ SHUFFLE ALL</button><span>ORDER</span><button type="button" data-order-button>DEFAULT</button><button type="button" data-theme-shortcut data-theme-value="light">□ LIGHT</button><button type="button" class="selected" data-theme-shortcut data-theme-value="dark">■ DARK</button></div>
+        <div class="transport-options"><button type="button" data-shuffle-all>▧ 全部随机</button><span>模式</span><button type="button" data-order-button>列表循环</button><button type="button" data-theme-shortcut data-theme-value="light">□ 浅色</button><button type="button" class="selected" data-theme-shortcut data-theme-value="dark">■ 深色</button></div>
       </div>
-      <div class="status-row"><div><span class="status-mark"></span><strong>ARCHIVE SECTION · BROWSE</strong></div><div><span>{trackCount.toLocaleString('en-US')} TRACKS</span><span>·</span><span>{shelfCount} SHELVES</span><strong>AUDIO ARCHIVE</strong></div></div>
+      <div class="status-row"><div><span class="status-mark"></span><strong>档案区 · 浏览</strong></div><div><span>{trackCount.toLocaleString('zh-CN')} 首曲目</span><span>·</span><span>{shelfCount} 层唱片架</span><strong>AUDIO ARCHIVE</strong></div></div>
     </footer>
   </main>
 </AudioArchiveLayout>

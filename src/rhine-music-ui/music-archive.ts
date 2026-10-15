@@ -1,6 +1,7 @@
 import '../scripts/music/index.ts';
 import { getSharedController } from '../scripts/music/controller';
 import type { Queue, Track } from '../scripts/music/types';
+import type { PlaybackMode } from '../scripts/playback-state';
 import { SHELF_SLOTS, buildShelves, createSpring, indexShelfTracks, stepSpring, type Spring } from './archive-model';
 import { rollCounter, scrambleTitle } from './archive-motion';
 import './archive-stage';
@@ -15,6 +16,9 @@ const CLOCK_INTERVAL_MS = 1000;
 const INDEX_OFFSET = 1;
 const TWO_DIGIT_WIDTH = 2;
 const FOUR_DIGIT_WIDTH = 4;
+const PLAYBACK_MODE_LABELS: Record<PlaybackMode, string> = {
+  list: '列表循环', shuffle: '随机播放', sequence: '顺序播放', single: '单曲循环',
+};
 const RULER_IDLE_HEIGHT = 10;
 const RULER_SELECTED_HEIGHT = 30;
 const RULER_HOVER_HEIGHT = 12;
@@ -287,9 +291,9 @@ function bindSearch(): void {
 function updateClock(): void {
   const now = new Date();
   required<HTMLElement>(page, '#archive-clock').textContent = now.toLocaleTimeString('en-GB', { hour12: false });
-  required<HTMLElement>(page, '#archive-date').textContent = now.toLocaleDateString('en-GB', {
-    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
-  }).toUpperCase();
+  const date = now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const weekday = now.toLocaleDateString('zh-CN', { weekday: 'short' });
+  required<HTMLElement>(page, '#archive-date').textContent = `${date} · ${weekday}`;
 }
 
 function bindTheme(): void {
@@ -311,9 +315,12 @@ function bindTheme(): void {
 
 function bindFooterControls(): void {
   const order = required<HTMLButtonElement>(page, '[data-order-button]');
-  order.addEventListener('click', () => { controller.cycleMode(); order.textContent = controller.mode.toUpperCase(); });
+  const syncOrderLabel = () => { order.textContent = PLAYBACK_MODE_LABELS[controller.mode]; };
+  syncOrderLabel();
+  order.addEventListener('click', () => { controller.cycleMode(); syncOrderLabel(); });
   required<HTMLButtonElement>(page, '[data-shuffle-all]').addEventListener('click', () => {
     while (controller.mode !== 'shuffle') controller.cycleMode();
+    syncOrderLabel();
     controller.playQueue(allTracksQueue, Math.floor(Math.random() * allTracksQueue.tracks.length));
   });
 }
