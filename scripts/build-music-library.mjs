@@ -66,13 +66,13 @@ function imageExtension(data, mimeType) {
     : subtype?.replace(/[^a-z0-9]/g, "") || "jpg";
 }
 
-async function findFiles(directory, extension) {
+async function findFiles(directory, extension, { recursive = true } = {}) {
   try {
     const entries = await readdir(directory, { withFileTypes: true });
     const matches = await Promise.all(
       entries.map(async (entry) => {
         const entryPath = join(directory, entry.name);
-        if (entry.isDirectory()) return findFiles(entryPath, extension);
+        if (entry.isDirectory()) return recursive ? findFiles(entryPath, extension) : [];
         return entry.isFile() && extname(entry.name).toLowerCase() === extension
           ? [entryPath]
           : [];
@@ -173,8 +173,9 @@ export async function scanMusicLibrary({
       }
     }
     const playlistRoot = join(musicRoot, directory);
-    const files = await findFiles(playlistRoot, ".mp3");
-    const lrcFiles = await findFiles(playlistRoot, ".lrc");
+    const scanOptions = { recursive: childDirectories.length === 0 };
+    const files = await findFiles(playlistRoot, ".mp3", scanOptions);
+    const lrcFiles = await findFiles(playlistRoot, ".lrc", scanOptions);
     files.sort((left, right) =>
       relative(playlistRoot, left).localeCompare(
         relative(playlistRoot, right),

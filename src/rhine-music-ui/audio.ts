@@ -28,6 +28,10 @@ export type AudioPreferences = {
 };
 const STEMS = ["atmosphere", "motif", "pulse"] as const;
 const LOOP_SECONDS = 160 / 3;
+const DEFAULT_MUSIC_FADE_SECONDS = 1.2;
+const PLAYER_MUSIC_FADE_OUT_SECONDS = 0.7;
+const PLAYER_MUSIC_FADE_IN_SECONDS = 3;
+const PLAYER_MUSIC_PAUSE_DELAY_MS = PLAYER_MUSIC_FADE_OUT_SECONDS * 1000;
 const noiseBuffers = new WeakMap<BaseAudioContext, AudioBuffer>();
 const typingBuffers = new WeakMap<
   BaseAudioContext,
@@ -339,6 +343,8 @@ export class TerminalAudio {
   private playedKeys = 0;
   private entryPending = false;
   private hostPaused = false;
+  private musicPlayerActive = false;
+  private musicPauseTimer?: ReturnType<typeof setTimeout>;
   setHostPaused(paused: boolean) {
     this.hostPaused = paused;
     if (paused) this.hide();
@@ -392,6 +398,8 @@ export class TerminalAudio {
   }
   private hide = () => {
     this.requestId++;
+    clearTimeout(this.musicPauseTimer);
+    this.musicPauseTimer = undefined;
     this.stopMusic();
     this.stopEffects();
     this.suspension =
@@ -417,7 +425,7 @@ export class TerminalAudio {
       );
       rampLevel(
         this.musicBus!.gain,
-        this.prefs.music ? this.prefs.musicVolume : 0,
+        this.prefs.music && !this.musicPlayerActive ? this.prefs.musicVolume : 0,
         this.context.currentTime,
         0.2,
       );
@@ -441,7 +449,8 @@ export class TerminalAudio {
     this.musicBus = c.createGain();
     this.duck = c.createGain();
     this.effects.gain.value = this.prefs.sound ? this.prefs.soundVolume : 0;
-    this.musicBus.gain.value = this.prefs.music ? this.prefs.musicVolume : 0;
+    this.musicBus.gain.value =
+      this.prefs.music && !this.musicPlayerActive ? this.prefs.musicVolume : 0;
     this.effects.connect(master);
     this.musicBus.connect(this.duck);
     this.duck.connect(master);
@@ -496,7 +505,42 @@ export class TerminalAudio {
       });
     return this.loading;
   }
-  private startMusic() {
+  setMusicPlayerActive(playing: boolean) {
+    if (this.musicPlayerActive === playing) return;
+    this.musicPlayerActive = playing;
+    clearTimeout(this.musicPauseTimer);
+    this.musicPauseTimer = undefined;
+
+    const context = this.context;
+    if (!context || !this.musicBus) return;
+    if (playing) {
+      rampLevel(
+        this.musicBus.gain,
+        0,
+        context.currentTime,
+        PLAYER_MUSIC_FADE_OUT_SECONDS,
+      );
+      this.musicPauseTimer = setTimeout(() => {
+        this.musicPauseTimer = undefined;
+        if (this.musicPlayerActive) this.stopMusic();
+      }, PLAYER_MUSIC_PAUSE_DELAY_MS);
+      return;
+    }
+
+    if (!this.prefs.music || this.disposed || this.hostPaused || document.hidden)
+      return;
+    if (this.tracks.length) {
+      rampLevel(
+        this.musicBus.gain,
+        this.prefs.musicVolume,
+        context.currentTime,
+        PLAYER_MUSIC_FADE_IN_SECONDS,
+      );
+      return;
+    }
+    this.startMusic(PLAYER_MUSIC_FADE_IN_SECONDS);
+  }
+  private startMusic(fadeSeconds = DEFAULT_MUSIC_FADE_SECONDS) {
     const c = this.context;
     if (
       !c ||
@@ -505,6 +549,7 @@ export class TerminalAudio {
       this.hostPaused ||
       this.tracks.length ||
       !this.prefs.music ||
+      this.musicPlayerActive ||
       this.disposed ||
       document.hidden
     )
@@ -524,7 +569,7 @@ export class TerminalAudio {
     this.musicBus!.gain.setValueAtTime(0, c.currentTime);
     this.musicBus!.gain.linearRampToValueAtTime(
       this.prefs.musicVolume,
-      c.currentTime + 1.2,
+      c.currentTime + fadeSeconds,
     );
   }
   private stopMusic() {
@@ -658,6 +703,8 @@ export class TerminalAudio {
   dispose() {
     this.disposed = true;
     this.requestId++;
+    clearTimeout(this.musicPauseTimer);
+    this.musicPauseTimer = undefined;
     this.stopMusic();
     this.stopEffects();
     document.removeEventListener("pointerdown", this.gesture, true);

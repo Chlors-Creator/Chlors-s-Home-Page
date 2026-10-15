@@ -61,8 +61,8 @@ export const records: ArchiveRecord[] = playlistEntries.flatMap(([directory, tra
       lead: track?.artist ?? "PUBLIC / MUSIC",
       clearance: track ? "AUTHORIZED" : "EMPTY DIRECTORY",
       abstract: definition?.description ?? `音乐目录：${directory}`,
-      findings: tracks.length
-        ? tracks.map((song) => `${song.title} — ${song.artist}`)
+      findings: track
+        ? [`${track.title} — ${track.artist}`]
         : ["当前目录没有曲目。"],
       source: track?.src ?? "/music/",
     };

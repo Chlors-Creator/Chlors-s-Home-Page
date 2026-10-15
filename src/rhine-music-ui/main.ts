@@ -278,6 +278,10 @@ const rollingTitles = [
 const selectedCode = createRollingNumber($("#selected-code"), codeOptions);
 const hoverCode = createRollingNumber($("#hover-code"), codeOptions);
 const audio = new TerminalAudio();
+document.addEventListener("rhine-music:playback-state", (event) => {
+  const { playing } = (event as CustomEvent<{ playing: boolean }>).detail;
+  audio.setMusicPlayerActive(playing);
+});
 let musicSuppressed = false;
 function configureAudio() {
   audio.configure({ ...prefs, music: prefs.music && !musicSuppressed });

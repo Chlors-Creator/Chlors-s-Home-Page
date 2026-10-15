@@ -26,6 +26,14 @@ export function createController(): PlayerController {
   const listeners = new Set<() => void>();
   let ended = false;
   let detachAudio: (() => void) | null = null;
+  let announcedPlayback = false;
+  const setPlaybackState = (playing: boolean) => {
+    if (announcedPlayback === playing) return;
+    announcedPlayback = playing;
+    document.dispatchEvent(
+      new CustomEvent("rhine-music:playback-state", { detail: { playing } }),
+    );
+  };
 
   const controller: PlayerController = {
     queue: null,
@@ -50,10 +58,10 @@ export function createController(): PlayerController {
       ended = false;
       if (queueChanged || !controller.audio) {
         if (controller.audio) {
-          Amplitude.stop();
-          controller.audio.pause();
           detachAudio?.();
           detachAudio = null;
+          Amplitude.stop();
+          controller.audio.pause();
           controller.audio = null;
         }
         const savedVolume = Number(localStorage.getItem("music-volume") ?? 0.8);
@@ -99,15 +107,36 @@ export function createController(): PlayerController {
         ];
         const onEnded = () => {
           ended = true;
+          const next = nextIndex({
+            mode: controller.mode,
+            current: controller.current,
+            length: controller.queue?.tracks.length || 0,
+          });
+          if (next === null) setPlaybackState(false);
+          controller.notify();
+        };
+        const onStart = () => {
+          setPlaybackState(true);
+          controller.notify();
+        };
+        const onError = () => {
+          setPlaybackState(false);
           controller.notify();
         };
         events.forEach((event) => audio.addEventListener(event, controller.notify));
+        audio.addEventListener("play", onStart);
+        audio.addEventListener("playing", onStart);
+        audio.addEventListener("error", onError);
         audio.addEventListener("ended", onEnded);
         detachAudio = () => {
           events.forEach((event) => audio.removeEventListener(event, controller.notify));
+          audio.removeEventListener("play", onStart);
+          audio.removeEventListener("playing", onStart);
+          audio.removeEventListener("error", onError);
           audio.removeEventListener("ended", onEnded);
         };
       }
+      setPlaybackState(true);
       Amplitude.playSongAtIndex(controller.current);
       controller.notify();
     },
@@ -117,8 +146,10 @@ export function createController(): PlayerController {
         return;
       }
       if (!controller.audio) return;
-      if (controller.audio.paused || controller.audio.ended) Amplitude.play();
+      const shouldPlay = controller.audio.paused || controller.audio.ended;
+      if (shouldPlay) Amplitude.play();
       else Amplitude.pause();
+      setPlaybackState(shouldPlay);
       controller.notify();
     },
     previous() {
